@@ -20,6 +20,7 @@ export interface UserSettings {
   notification_enabled: boolean;
   reminder_hours: number[];
   language_code: string;
+  timezone?: string;
 }
 
 // Folder types (matches backend domain.Folder)

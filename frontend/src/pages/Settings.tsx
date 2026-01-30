@@ -7,6 +7,34 @@ import { useTelegram } from '@/hooks';
 import { authApi } from '@/api';
 import { cn } from '@/utils';
 
+const TIMEZONE_OPTIONS = [
+  { value: 'UTC', label: 'UTC (GMT+0)' },
+  { value: 'Europe/Moscow', label: 'Москва (GMT+3)' },
+  { value: 'Europe/Kaliningrad', label: 'Калининград (GMT+2)' },
+  { value: 'Europe/Samara', label: 'Самара (GMT+4)' },
+  { value: 'Asia/Yekaterinburg', label: 'Екатеринбург (GMT+5)' },
+  { value: 'Asia/Omsk', label: 'Омск (GMT+6)' },
+  { value: 'Asia/Krasnoyarsk', label: 'Красноярск (GMT+7)' },
+  { value: 'Asia/Irkutsk', label: 'Иркутск (GMT+8)' },
+  { value: 'Asia/Yakutsk', label: 'Якутск (GMT+9)' },
+  { value: 'Asia/Vladivostok', label: 'Владивосток (GMT+10)' },
+  { value: 'Asia/Magadan', label: 'Магадан (GMT+11)' },
+  { value: 'Asia/Kamchatka', label: 'Камчатка (GMT+12)' },
+  { value: 'Europe/Kiev', label: 'Киев (GMT+2)' },
+  { value: 'Europe/Minsk', label: 'Минск (GMT+3)' },
+  { value: 'Asia/Almaty', label: 'Алматы (GMT+6)' },
+  { value: 'Asia/Tashkent', label: 'Ташкент (GMT+5)' },
+  { value: 'Asia/Baku', label: 'Баку (GMT+4)' },
+  { value: 'Asia/Tbilisi', label: 'Тбилиси (GMT+4)' },
+  { value: 'Europe/London', label: 'Лондон (GMT+0)' },
+  { value: 'Europe/Berlin', label: 'Берлин (GMT+1)' },
+  { value: 'America/New_York', label: 'Нью-Йорк (GMT-5)' },
+  { value: 'America/Los_Angeles', label: 'Лос-Анджелес (GMT-8)' },
+  { value: 'Asia/Tokyo', label: 'Токио (GMT+9)' },
+  { value: 'Asia/Shanghai', label: 'Шанхай (GMT+8)' },
+  { value: 'Asia/Dubai', label: 'Дубай (GMT+4)' },
+];
+
 const Settings = () => {
   const { user, theme, setTheme, logout, updateUserSettings } = useAppStore();
   const { platform, showConfirm, openLink } = useTelegram();
@@ -16,6 +44,7 @@ const Settings = () => {
   const [reminderHours, setReminderHours] = useState<number[]>(
     user?.reminder_hours ?? [6, 8, 12]
   );
+  const [timezone, setTimezone] = useState(user?.settings?.timezone || 'UTC');
   const [isSaving, setIsSaving] = useState(false);
 
   const reminderOptions = useMemo(
@@ -33,6 +62,7 @@ const Settings = () => {
     if (!user) return;
     setNotificationsEnabled(user.notification_enabled);
     setReminderHours(user.reminder_hours || []);
+    setTimezone(user.settings?.timezone || 'UTC');
   }, [user]);
 
   const handleLogout = () => {
@@ -51,7 +81,7 @@ const Settings = () => {
       .join(', ');
 
   const saveSettings = async (
-    next: { notification_enabled: boolean; reminder_hours: number[] },
+    next: { notification_enabled: boolean; reminder_hours: number[]; timezone: string },
     rollback: () => void
   ) => {
     if (!user) return;
@@ -61,6 +91,7 @@ const Settings = () => {
         notification_enabled: next.notification_enabled,
         reminder_hours: next.reminder_hours,
         language_code: user.language_code,
+        timezone: next.timezone,
       });
       updateUserSettings(next);
     } catch (error) {
@@ -76,7 +107,7 @@ const Settings = () => {
     const next = !prev;
     setNotificationsEnabled(next);
     saveSettings(
-      { notification_enabled: next, reminder_hours: reminderHours },
+      { notification_enabled: next, reminder_hours: reminderHours, timezone },
       () => setNotificationsEnabled(prev) // Rollback function
     );
   };
@@ -88,8 +119,17 @@ const Settings = () => {
       : [...reminderHours, hour];
     setReminderHours(next);
     saveSettings(
-      { notification_enabled: notificationsEnabled, reminder_hours: next },
+      { notification_enabled: notificationsEnabled, reminder_hours: next, timezone },
       () => setReminderHours(prev) // Rollback function
+    );
+  };
+
+  const handleTimezoneChange = (newTimezone: string) => {
+    const prev = timezone;
+    setTimezone(newTimezone);
+    saveSettings(
+      { notification_enabled: notificationsEnabled, reminder_hours: reminderHours, timezone: newTimezone },
+      () => setTimezone(prev) // Rollback function
     );
   };
 
@@ -227,6 +267,24 @@ const Settings = () => {
                 )}
               />
             </button>
+          }
+        />
+
+        <SettingItem
+          icon={
+            <svg className="w-5 h-5 text-dark-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          }
+          label="Часовой пояс"
+          description={TIMEZONE_OPTIONS.find(t => t.value === timezone)?.label || timezone}
+          action={
+            <Select
+              value={timezone}
+              onChange={handleTimezoneChange}
+              options={TIMEZONE_OPTIONS}
+              fullWidth={false}
+            />
           }
         />
 

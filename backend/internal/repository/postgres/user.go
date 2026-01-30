@@ -21,7 +21,7 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 func (r *UserRepository) GetByID(ctx context.Context, id int64) (*domain.User, error) {
 	query := `
 		SELECT id, username, first_name, last_name, language_code,
-		       notification_enabled, reminder_hours, last_active_at, created_at, updated_at
+		       notification_enabled, reminder_hours, timezone, last_active_at, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -35,6 +35,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*domain.User, e
 		&user.LanguageCode,
 		&user.NotificationEnabled,
 		&user.ReminderHours,
+		&user.Timezone,
 		&user.LastActiveAt,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -53,6 +54,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*domain.User, e
 		NotificationEnabled: user.NotificationEnabled,
 		ReminderHours:       user.ReminderHours,
 		LanguageCode:        user.LanguageCode,
+		Timezone:            user.Timezone,
 	}
 
 	return &user, nil
@@ -61,8 +63,8 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*domain.User, e
 func (r *UserRepository) Create(ctx context.Context, user *domain.User) error {
 	query := `
 		INSERT INTO users (id, username, first_name, last_name, language_code,
-		                   notification_enabled, reminder_hours, last_active_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		                   notification_enabled, reminder_hours, timezone, last_active_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (id) DO UPDATE SET
 			username = EXCLUDED.username,
 			first_name = EXCLUDED.first_name,
@@ -76,6 +78,9 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User) error {
 	if user.ReminderHours == nil {
 		user.ReminderHours = []int{6, 8, 12}
 	}
+	if user.Timezone == "" {
+		user.Timezone = "UTC"
+	}
 
 	err := r.db.QueryRow(ctx, query,
 		user.ID,
@@ -85,6 +90,7 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User) error {
 		user.LanguageCode,
 		user.NotificationEnabled,
 		user.ReminderHours,
+		user.Timezone,
 		time.Now(),
 	).Scan(&user.CreatedAt, &user.UpdatedAt)
 
@@ -95,7 +101,7 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 	query := `
 		UPDATE users
 		SET username = $2, first_name = $3, last_name = $4, language_code = $5,
-		    notification_enabled = $6, reminder_hours = $7, updated_at = NOW()
+		    notification_enabled = $6, reminder_hours = $7, timezone = $8, updated_at = NOW()
 		WHERE id = $1
 		RETURNING updated_at
 	`
@@ -108,6 +114,7 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 		user.LanguageCode,
 		user.NotificationEnabled,
 		user.ReminderHours,
+		user.Timezone,
 	).Scan(&user.UpdatedAt)
 
 	if err != nil {
@@ -123,15 +130,21 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 func (r *UserRepository) UpdateSettings(ctx context.Context, userID int64, settings *domain.UserSettings) error {
 	query := `
 		UPDATE users
-		SET notification_enabled = $2, reminder_hours = $3, language_code = $4, updated_at = NOW()
+		SET notification_enabled = $2, reminder_hours = $3, language_code = $4, timezone = $5, updated_at = NOW()
 		WHERE id = $1
 	`
+
+	timezone := settings.Timezone
+	if timezone == "" {
+		timezone = "UTC"
+	}
 
 	result, err := r.db.Exec(ctx, query,
 		userID,
 		settings.NotificationEnabled,
 		settings.ReminderHours,
 		settings.LanguageCode,
+		timezone,
 	)
 
 	if err != nil {
@@ -187,17 +200,20 @@ func (r *UserRepository) GetInactiveUsers(ctx context.Context, since time.Time) 
 	return users, rows.Err()
 }
 
-// GetUsersForReminderHour returns users who have notifications enabled and the given hour in their reminder_hours
+// GetUsersForReminderHour returns users who have notifications enabled and the current hour
+// in their timezone matches any of their reminder_hours
 func (r *UserRepository) GetUsersForReminderHour(ctx context.Context, hour int) ([]domain.User, error) {
+	// This query converts current UTC time to user's timezone and checks if that hour is in reminder_hours
+	// The hour parameter is ignored - we calculate the local hour for each user based on their timezone
 	query := `
 		SELECT id, username, first_name, last_name, language_code,
-		       notification_enabled, reminder_hours, last_active_at, created_at, updated_at
+		       notification_enabled, reminder_hours, timezone, last_active_at, created_at, updated_at
 		FROM users
 		WHERE notification_enabled = true
-		  AND $1 = ANY(reminder_hours)
+		  AND EXTRACT(HOUR FROM (NOW() AT TIME ZONE COALESCE(NULLIF(timezone, ''), 'UTC')))::int = ANY(reminder_hours)
 	`
 
-	rows, err := r.db.Query(ctx, query, hour)
+	rows, err := r.db.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -214,6 +230,7 @@ func (r *UserRepository) GetUsersForReminderHour(ctx context.Context, hour int) 
 			&user.LanguageCode,
 			&user.NotificationEnabled,
 			&user.ReminderHours,
+			&user.Timezone,
 			&user.LastActiveAt,
 			&user.CreatedAt,
 			&user.UpdatedAt,

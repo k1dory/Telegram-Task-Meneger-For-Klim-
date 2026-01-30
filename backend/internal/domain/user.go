@@ -13,6 +13,7 @@ type User struct {
 	PhotoURL            string        `json:"photo_url,omitempty"`
 	IsPremium           bool          `json:"is_premium"`
 	LanguageCode        string        `json:"language_code"`
+	Timezone            string        `json:"timezone"` // IANA timezone (e.g., "Europe/Moscow")
 	NotificationEnabled bool          `json:"notification_enabled"`
 	ReminderHours       []int         `json:"reminder_hours"`
 	Settings            *UserSettings `json:"settings,omitempty"`
@@ -22,9 +23,10 @@ type User struct {
 }
 
 type UserSettings struct {
-	NotificationEnabled bool  `json:"notification_enabled"`
-	ReminderHours       []int `json:"reminder_hours"`
+	NotificationEnabled bool   `json:"notification_enabled"`
+	ReminderHours       []int  `json:"reminder_hours"`
 	LanguageCode        string `json:"language_code"`
+	Timezone            string `json:"timezone"`
 }
 
 type TelegramUser struct {
