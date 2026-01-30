@@ -14,7 +14,8 @@ interface CalendarState {
   viewMode: 'month' | 'week' | 'day';
 
   // Actions
-  fetchEvents: (boardId: string) => Promise<void>;
+  fetchEvents: (boardId: string, month?: Date) => Promise<void>;
+  fetchEventsForMonth: (boardIds: string[], month: Date) => Promise<void>;
   fetchEventById: (id: string) => Promise<void>;
   createEvent: (boardId: string, data: { title: string; content?: string; due_date?: string; metadata?: Record<string, unknown> }) => Promise<Item>;
   updateEvent: (id: string, data: Partial<Item>) => Promise<void>;
@@ -39,10 +40,11 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   selectedDate: null,
   viewMode: 'month',
 
-  fetchEvents: async (boardId: string) => {
-    const { currentMonth, events: existingEvents } = get();
-    const startDate = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
-    const endDate = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
+  fetchEvents: async (boardId: string, month?: Date) => {
+    const targetMonth = month || get().currentMonth;
+    const { events: existingEvents } = get();
+    const startDate = format(startOfMonth(targetMonth), 'yyyy-MM-dd');
+    const endDate = format(endOfMonth(targetMonth), 'yyyy-MM-dd');
 
     set({ isLoading: true, error: null, currentBoardId: boardId });
 
@@ -55,6 +57,30 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       const existingFromOtherBoards = existingEvents.filter(e => e.board_id !== boardId);
       const mergedEvents = [...existingFromOtherBoards, ...newEvents];
       set({ events: mergedEvents, isLoading: false });
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to fetch events',
+        isLoading: false,
+      });
+    }
+  },
+
+  fetchEventsForMonth: async (boardIds: string[], month: Date) => {
+    const startDate = format(startOfMonth(month), 'yyyy-MM-dd');
+    const endDate = format(endOfMonth(month), 'yyyy-MM-dd');
+
+    set({ isLoading: true, error: null, events: [] });
+
+    try {
+      const allEvents: Item[] = [];
+      for (const boardId of boardIds) {
+        const events = await itemsApi.getByBoard(boardId, {
+          due_after: startDate,
+          due_before: endDate,
+        });
+        allEvents.push(...events);
+      }
+      set({ events: allEvents, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch events',

@@ -23,7 +23,7 @@ import { cn } from '@/utils';
 import type { Item, Board } from '@/types';
 
 const Calendar = () => {
-  const { events, fetchEvents } = useCalendarStore();
+  const { events, fetchEventsForMonth } = useCalendarStore();
   const { folders, fetchFolders } = useFoldersStore();
   const { openModal } = useAppStore();
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -36,6 +36,7 @@ const Calendar = () => {
     fetchFolders();
   }, [fetchFolders]);
 
+  // Load calendar boards from folders
   useEffect(() => {
     const loadCalendarBoards = async () => {
       if (folders.length === 0) {
@@ -50,11 +51,6 @@ const Calendar = () => {
         );
         const boards = boardGroups.flat().filter((b) => b.type === 'calendar');
         setCalendarBoards(boards);
-
-        // Fetch events from all calendar boards
-        for (const board of boards) {
-          await fetchEvents(board.id);
-        }
       } catch (error) {
         console.error('Failed to load calendar boards:', error);
       } finally {
@@ -63,7 +59,15 @@ const Calendar = () => {
     };
 
     loadCalendarBoards();
-  }, [folders, fetchEvents]);
+  }, [folders]);
+
+  // Fetch events when month changes or boards are loaded
+  useEffect(() => {
+    if (calendarBoards.length > 0) {
+      const boardIds = calendarBoards.map(b => b.id);
+      fetchEventsForMonth(boardIds, currentMonth);
+    }
+  }, [calendarBoards, currentMonth, fetchEventsForMonth]);
 
   // Generate calendar days
   const calendarDays = useMemo(() => {

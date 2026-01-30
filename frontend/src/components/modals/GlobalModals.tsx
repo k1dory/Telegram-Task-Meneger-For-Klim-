@@ -633,7 +633,7 @@ const BoardFormModal = () => {
     setIsSubmitting(true);
 
     try {
-      await boardsApi.create(currentFolder.id, { name, type, settings: {} });
+      await boardsApi.create(currentFolder.id, { name, type });
       await fetchFolderById(currentFolder.id);
       closeModal();
     } finally {
