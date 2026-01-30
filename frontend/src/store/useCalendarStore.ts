@@ -46,7 +46,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
 
     try {
       const response = await calendarApi.getAll({ folderId, startDate, endDate });
-      set({ events: response.data.items, isLoading: false });
+      set({ events: response.items, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch events',
@@ -59,7 +59,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await calendarApi.getById(id);
-      set({ currentEvent: response.data, isLoading: false });
+      set({ currentEvent: response, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch event',
@@ -71,8 +71,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   createEvent: async (data: CreateEventDto) => {
     set({ error: null });
     try {
-      const response = await calendarApi.create(data);
-      const newEvent = response.data;
+      const newEvent = await calendarApi.create(data);
       set((state) => ({
         events: [...state.events, newEvent],
       }));
@@ -88,8 +87,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   updateEvent: async (id: string, data: UpdateEventDto) => {
     set({ error: null });
     try {
-      const response = await calendarApi.update(id, data);
-      const updatedEvent = response.data;
+      const updatedEvent = await calendarApi.update(id, data);
       set((state) => ({
         events: state.events.map((e) => (e.id === id ? updatedEvent : e)),
         currentEvent: state.currentEvent?.id === id ? updatedEvent : state.currentEvent,

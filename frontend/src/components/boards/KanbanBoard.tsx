@@ -10,10 +10,9 @@ interface KanbanBoardProps {
 }
 
 const columns: { id: TaskStatus; title: string }[] = [
-  { id: 'todo', title: 'К выполнению' },
-  { id: 'in-progress', title: 'В работе' },
-  { id: 'review', title: 'На проверке' },
-  { id: 'done', title: 'Выполнено' },
+  { id: 'pending', title: 'К выполнению' },
+  { id: 'in_progress', title: 'В работе' },
+  { id: 'completed', title: 'Выполнено' },
 ];
 
 const KanbanBoard = ({ folderId }: KanbanBoardProps) => {

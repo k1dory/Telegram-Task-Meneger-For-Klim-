@@ -56,7 +56,7 @@ const TimeManagerBoard = ({ folderId }: TimeManagerBoardProps) => {
     timer.reset(0);
   };
 
-  const activeTasks = tasks.filter((t) => t.status !== 'done');
+  const activeTasks = tasks.filter((t) => t.status !== 'completed');
   const totalTimeToday = tasks.reduce((sum, t) => sum + t.timeSpent, 0);
 
   // Calculate today's progress (assuming 8 hour workday = 480 minutes)
@@ -202,7 +202,7 @@ const TimeManagerBoard = ({ folderId }: TimeManagerBoardProps) => {
           </div>
           <div className="text-center">
             <p className="text-2xl font-bold text-green-400">
-              {tasks.filter((t) => t.status === 'done').length}
+              {tasks.filter((t) => t.status === 'completed').length}
             </p>
             <p className="text-xs text-dark-400">Выполнено</p>
           </div>

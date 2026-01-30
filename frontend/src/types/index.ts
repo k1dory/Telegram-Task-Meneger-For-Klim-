@@ -18,26 +18,30 @@ export interface UserSettings {
   defaultView: 'list' | 'kanban' | 'calendar';
 }
 
-// Folder types
+// Folder types (matches backend domain.Folder)
 export interface Folder {
   id: string;
+  user_id: number;
   name: string;
   color: string;
-  icon: string;
-  boardTypes: BoardType[];
-  taskCount: number;
-  completedCount: number;
-  createdAt: string;
-  updatedAt: string;
+  icon?: string;
+  position: number;
+  created_at: string;
+  updated_at: string;
+  boards?: Array<{
+    id: string;
+    name: string;
+    type: string;
+  }>;
 }
 
 export type BoardType =
   | 'notes'
   | 'kanban'
   | 'checklist'
-  | 'time-manager'
+  | 'time_manager'
   | 'calendar'
-  | 'habit-tracker';
+  | 'habit_tracker';
 
 // Task types
 export interface Task {
@@ -58,7 +62,7 @@ export interface Task {
   completedAt?: string;
 }
 
-export type TaskStatus = 'todo' | 'in-progress' | 'review' | 'done';
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'archived';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 export interface Subtask {

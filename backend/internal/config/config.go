@@ -47,17 +47,17 @@ type JWTConfig struct {
 func Load() (*Config, error) {
 	return &Config{
 		Server: ServerConfig{
-			Port:         getEnv("SERVER_PORT", "8080"),
+			Port:         getEnv("API_PORT", "8080"),
 			ReadTimeout:  getDurationEnv("SERVER_READ_TIMEOUT", 10*time.Second),
 			WriteTimeout: getDurationEnv("SERVER_WRITE_TIMEOUT", 10*time.Second),
 			Mode:         getEnv("GIN_MODE", "debug"),
 		},
 		Database: DatabaseConfig{
-			Host:            getEnv("DB_HOST", "localhost"),
-			Port:            getEnv("DB_PORT", "5432"),
-			User:            getEnv("DB_USER", "postgres"),
-			Password:        getEnv("DB_PASSWORD", "postgres"),
-			DBName:          getEnv("DB_NAME", "task_manager"),
+			Host:            getEnv("POSTGRES_HOST", "localhost"),
+			Port:            getEnv("POSTGRES_PORT", "5432"),
+			User:            getEnv("POSTGRES_USER", "taskmanager"),
+			Password:        getEnv("POSTGRES_PASSWORD", "postgres"),
+			DBName:          getEnv("POSTGRES_DB", "taskmanager"),
 			SSLMode:         getEnv("DB_SSL_MODE", "disable"),
 			MaxConns:        int32(getIntEnv("DB_MAX_CONNS", 25)),
 			MinConns:        int32(getIntEnv("DB_MIN_CONNS", 5)),
@@ -66,7 +66,7 @@ func Load() (*Config, error) {
 		},
 		Telegram: TelegramConfig{
 			BotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
-			AppURL:   getEnv("TELEGRAM_APP_URL", ""),
+			AppURL:   getEnv("TELEGRAM_MINI_APP_URL", ""),
 		},
 		JWT: JWTConfig{
 			Secret:          getEnv("JWT_SECRET", "your-super-secret-key-change-in-production"),

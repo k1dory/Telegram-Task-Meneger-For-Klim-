@@ -41,7 +41,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
 
     try {
       const response = await notesApi.getAll(currentFilters, page);
-      const sortedNotes = [...response.data.items].sort((a, b) => {
+      const sortedNotes = [...response.items].sort((a, b) => {
         // Pinned notes first
         if (a.pinned && !b.pinned) return -1;
         if (!a.pinned && b.pinned) return 1;
@@ -51,7 +51,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
 
       set((state) => ({
         notes: reset ? sortedNotes : [...state.notes, ...sortedNotes],
-        hasMore: response.data.hasMore,
+        hasMore: response.hasMore,
         page: page + 1,
         filters: currentFilters,
         isLoading: false,
@@ -68,7 +68,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await notesApi.getById(id);
-      set({ currentNote: response.data, isLoading: false });
+      set({ currentNote: response, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch note',
@@ -80,8 +80,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   createNote: async (data: CreateNoteDto) => {
     set({ error: null });
     try {
-      const response = await notesApi.create(data);
-      const newNote = response.data;
+      const newNote = await notesApi.create(data);
       set((state) => ({
         notes: [newNote, ...state.notes],
       }));
@@ -97,8 +96,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   updateNote: async (id: string, data: UpdateNoteDto) => {
     set({ error: null });
     try {
-      const response = await notesApi.update(id, data);
-      const updatedNote = response.data;
+      const updatedNote = await notesApi.update(id, data);
       set((state) => ({
         notes: state.notes.map((n) => (n.id === id ? updatedNote : n)),
         currentNote: state.currentNote?.id === id ? updatedNote : state.currentNote,
@@ -152,8 +150,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   duplicateNote: async (id: string) => {
     set({ error: null });
     try {
-      const response = await notesApi.duplicate(id);
-      const duplicatedNote = response.data;
+      const duplicatedNote = await notesApi.duplicate(id);
       set((state) => ({
         notes: [duplicatedNote, ...state.notes],
       }));

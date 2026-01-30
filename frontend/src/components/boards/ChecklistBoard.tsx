@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTasksStore, useAppStore } from '@/store';
 import { Card, Button, Input, Checkbox, Progress, Badge } from '@/components/ui';
 import { cn, priorityColors, priorityLabels, formatRelativeDate, calculateProgress } from '@/utils';
-import type { Task } from '@/types';
+import type { Task, TaskStatus } from '@/types';
 
 interface ChecklistBoardProps {
   folderId: string;
@@ -22,15 +22,15 @@ const ChecklistBoard = ({ folderId }: ChecklistBoardProps) => {
 
   const filteredTasks = tasks.filter((task) => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCompleted = showCompleted || task.status !== 'done';
+    const matchesCompleted = showCompleted || task.status !== 'completed';
     return matchesSearch && matchesCompleted;
   });
 
-  const incompleteTasks = filteredTasks.filter((t) => t.status !== 'done');
-  const completedTasks = filteredTasks.filter((t) => t.status === 'done');
+  const incompleteTasks = filteredTasks.filter((t) => t.status !== 'completed');
+  const completedTasks = filteredTasks.filter((t) => t.status === 'completed');
 
   const handleTaskToggle = (task: Task) => {
-    const newStatus = task.status === 'done' ? 'todo' : 'done';
+    const newStatus: TaskStatus = task.status === 'completed' ? 'pending' : 'completed';
     updateTaskStatus(task.id, newStatus);
   };
 
@@ -43,7 +43,7 @@ const ChecklistBoard = ({ folderId }: ChecklistBoardProps) => {
   };
 
   const TaskItem = ({ task }: { task: Task }) => {
-    const isCompleted = task.status === 'done';
+    const isCompleted = task.status === 'completed';
     const subtaskProgress = calculateProgress(
       task.subtasks.filter((s) => s.completed).length,
       task.subtasks.length

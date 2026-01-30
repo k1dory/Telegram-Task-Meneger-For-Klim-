@@ -18,6 +18,7 @@ interface AppState {
   telegramUser: TelegramUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  error: string | null;
 
   // UI state
   isSidebarOpen: boolean;
@@ -29,6 +30,7 @@ interface AppState {
   setUser: (user: User | null) => void;
   setTelegramUser: (user: TelegramUser | null) => void;
   setIsLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
   openModal: (modalId: string, data?: unknown) => void;
@@ -46,6 +48,7 @@ export const useAppStore = create<AppState>()(
       telegramUser: null,
       isAuthenticated: false,
       isLoading: true,
+      error: null,
       isSidebarOpen: false,
       activeModal: null,
       modalData: null,
@@ -62,6 +65,8 @@ export const useAppStore = create<AppState>()(
       setTelegramUser: (telegramUser) => set({ telegramUser }),
 
       setIsLoading: (isLoading) => set({ isLoading }),
+
+      setError: (error) => set({ error }),
 
       toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
 

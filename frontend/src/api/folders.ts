@@ -1,23 +1,25 @@
 import apiClient from './client';
-import type { Folder, BoardType, PaginatedResponse } from '@/types';
+import type { Folder } from '@/types';
+
+export type { Folder };
 
 export interface CreateFolderDto {
   name: string;
-  color: string;
-  icon: string;
-  boardTypes: BoardType[];
+  color?: string;
+  icon?: string;
+  position?: number;
 }
 
 export interface UpdateFolderDto {
   name?: string;
   color?: string;
   icon?: string;
-  boardTypes?: BoardType[];
+  position?: number;
 }
 
 export const foldersApi = {
-  async getAll(page: number = 1, limit: number = 20) {
-    return apiClient.get<PaginatedResponse<Folder>>(`/folders?page=${page}&limit=${limit}`);
+  async getAll() {
+    return apiClient.get<Folder[]>('/folders');
   },
 
   async getById(id: string) {
@@ -29,7 +31,7 @@ export const foldersApi = {
   },
 
   async update(id: string, data: UpdateFolderDto) {
-    return apiClient.patch<Folder>(`/folders/${id}`, data);
+    return apiClient.put<Folder>(`/folders/${id}`, data);
   },
 
   async delete(id: string) {
@@ -37,7 +39,7 @@ export const foldersApi = {
   },
 
   async reorder(folderIds: string[]) {
-    return apiClient.post<void>('/folders/reorder', { folderIds });
+    return apiClient.put<void>('/folders/reorder', { folder_ids: folderIds });
   },
 };
 

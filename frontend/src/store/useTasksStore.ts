@@ -61,8 +61,8 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     try {
       const response = await tasksApi.getAll(currentFilters, page);
       set((state) => ({
-        tasks: reset ? response.data.items : [...state.tasks, ...response.data.items],
-        hasMore: response.data.hasMore,
+        tasks: reset ? response.items : [...state.tasks, ...response.items],
+        hasMore: response.hasMore,
         page: page + 1,
         filters: currentFilters,
         isLoading: false,
@@ -79,7 +79,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await tasksApi.getById(id);
-      set({ currentTask: response.data, isLoading: false });
+      set({ currentTask: response, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch task',
@@ -91,8 +91,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   createTask: async (data: CreateTaskDto) => {
     set({ error: null });
     try {
-      const response = await tasksApi.create(data);
-      const newTask = response.data;
+      const newTask = await tasksApi.create(data);
       set((state) => ({
         tasks: [newTask, ...state.tasks],
       }));
@@ -108,8 +107,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   updateTask: async (id: string, data: UpdateTaskDto) => {
     set({ error: null });
     try {
-      const response = await tasksApi.update(id, data);
-      const updatedTask = response.data;
+      const updatedTask = await tasksApi.update(id, data);
       set((state) => ({
         tasks: state.tasks.map((t) => (t.id === id ? updatedTask : t)),
         currentTask: state.currentTask?.id === id ? updatedTask : state.currentTask,
@@ -150,7 +148,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
           ? {
               ...t,
               status,
-              completedAt: status === 'done' ? new Date().toISOString() : undefined,
+              completedAt: status === 'completed' ? new Date().toISOString() : undefined,
             }
           : t
       ),
@@ -173,8 +171,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
   addSubtask: async (taskId: string, title: string) => {
     try {
-      const response = await tasksApi.addSubtask(taskId, title);
-      const newSubtask = response.data;
+      const newSubtask = await tasksApi.addSubtask(taskId, title);
       set((state) => ({
         tasks: state.tasks.map((t) =>
           t.id === taskId ? { ...t, subtasks: [...t.subtasks, newSubtask] } : t

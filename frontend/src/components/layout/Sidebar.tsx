@@ -101,7 +101,7 @@ const Sidebar = () => {
                   />
                   <span className="text-sm truncate">{folder.name}</span>
                   <span className="ml-auto text-xs text-dark-500">
-                    {folder.taskCount}
+                    {folder.boards?.length || 0}
                   </span>
                 </NavLink>
               ))}
@@ -208,7 +208,7 @@ const Sidebar = () => {
                       />
                       <span className="text-sm truncate">{folder.name}</span>
                       <span className="ml-auto text-xs text-dark-500">
-                        {folder.taskCount}
+                        {folder.boards?.length || 0}
                       </span>
                     </NavLink>
                   ))}

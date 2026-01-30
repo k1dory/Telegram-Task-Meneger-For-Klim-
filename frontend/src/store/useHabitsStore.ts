@@ -41,7 +41,7 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
     try {
       const response = await habitsApi.getAll(currentFilters);
       set({
-        habits: response.data.items,
+        habits: response.items,
         filters: currentFilters,
         isLoading: false,
       });
@@ -57,7 +57,7 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await habitsApi.getById(id);
-      set({ currentHabit: response.data, isLoading: false });
+      set({ currentHabit: response, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch habit',
@@ -69,8 +69,7 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
   createHabit: async (data: CreateHabitDto) => {
     set({ error: null });
     try {
-      const response = await habitsApi.create(data);
-      const newHabit = response.data;
+      const newHabit = await habitsApi.create(data);
       set((state) => ({
         habits: [...state.habits, newHabit],
       }));
@@ -86,8 +85,7 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
   updateHabit: async (id: string, data: UpdateHabitDto) => {
     set({ error: null });
     try {
-      const response = await habitsApi.update(id, data);
-      const updatedHabit = response.data;
+      const updatedHabit = await habitsApi.update(id, data);
       set((state) => ({
         habits: state.habits.map((h) => (h.id === id ? updatedHabit : h)),
         currentHabit: state.currentHabit?.id === id ? updatedHabit : state.currentHabit,

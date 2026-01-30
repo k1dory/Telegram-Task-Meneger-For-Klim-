@@ -14,14 +14,15 @@ import {
 import { useFoldersStore, useAppStore } from '@/store';
 import { boardTypeLabels, boardTypeIcons, calculateProgress } from '@/utils';
 import type { BoardType } from '@/types';
+import React from 'react';
 
 const boardComponents: Record<BoardType, React.ComponentType<{ folderId: string }>> = {
   notes: NotesBoard,
   kanban: KanbanBoard,
   checklist: ChecklistBoard,
-  'time-manager': TimeManagerBoard,
+  'time_manager': TimeManagerBoard,
   calendar: CalendarBoard,
-  'habit-tracker': HabitTrackerBoard,
+  'habit_tracker': HabitTrackerBoard,
 };
 
 const FolderDetail = () => {
@@ -39,7 +40,8 @@ const FolderDetail = () => {
 
   useEffect(() => {
     if (currentFolder && !activeBoard) {
-      setActiveBoard(currentFolder.boardTypes[0] || 'checklist');
+      const boardTypes = currentFolder.boards?.map(b => b.type as BoardType) || [];
+      setActiveBoard(boardTypes[0] || 'checklist');
     }
   }, [currentFolder, activeBoard]);
 
@@ -61,7 +63,11 @@ const FolderDetail = () => {
     );
   }
 
-  const progress = calculateProgress(currentFolder.completedCount, currentFolder.taskCount);
+  // Task counts will be fetched separately or calculated from items
+  const taskCount = 0; // TODO: Fetch from items API
+  const completedCount = 0; // TODO: Fetch from items API
+  const progress = calculateProgress(completedCount, taskCount);
+  const boardTypes = currentFolder.boards?.map(b => b.type as BoardType) || [];
   const BoardComponent = activeBoard ? boardComponents[activeBoard] : null;
 
   return (
@@ -109,13 +115,13 @@ const FolderDetail = () => {
             className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl"
             style={{ backgroundColor: `${currentFolder.color}30` }}
           >
-            {currentFolder.icon}
+            {currentFolder.icon || '📁'}
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-dark-300">Прогресс</span>
               <span className="text-sm font-medium text-dark-200">
-                {currentFolder.completedCount} / {currentFolder.taskCount}
+                {completedCount} / {taskCount}
               </span>
             </div>
             <Progress value={progress} size="md" color="primary" />
@@ -129,21 +135,21 @@ const FolderDetail = () => {
       </div>
 
       {/* Board Tabs */}
-      {currentFolder.boardTypes.length > 1 ? (
+      {boardTypes.length > 1 ? (
         <Tabs
-          defaultValue={activeBoard || currentFolder.boardTypes[0]}
+          defaultValue={activeBoard || boardTypes[0]}
           value={activeBoard || undefined}
           onValueChange={(value) => setActiveBoard(value as BoardType)}
         >
           <TabsList className="overflow-x-auto">
-            {currentFolder.boardTypes.map((type) => (
+            {boardTypes.map((type) => (
               <TabsTrigger key={type} value={type}>
                 {boardTypeLabels[type]}
               </TabsTrigger>
             ))}
           </TabsList>
 
-          {currentFolder.boardTypes.map((type) => (
+          {boardTypes.map((type) => (
             <TabsContent key={type} value={type} className="mt-4">
               {boardComponents[type] && (
                 <div>
@@ -180,8 +186,5 @@ const FolderDetail = () => {
     </motion.div>
   );
 };
-
-// Need to import React for createElement
-import React from 'react';
 
 export default FolderDetail;

@@ -66,38 +66,38 @@ export const priorityLabels = {
   urgent: 'Срочный',
 } as const;
 
-// Status colors
+// Status colors - updated to match TaskStatus enum
 export const statusColors = {
-  'todo': '#94a3b8',
-  'in-progress': '#3b82f6',
-  'review': '#f59e0b',
-  'done': '#22c55e',
+  'pending': '#94a3b8',
+  'in_progress': '#3b82f6',
+  'completed': '#22c55e',
+  'archived': '#6b7280',
 } as const;
 
 export const statusLabels = {
-  'todo': 'К выполнению',
-  'in-progress': 'В работе',
-  'review': 'На проверке',
-  'done': 'Выполнено',
+  'pending': 'К выполнению',
+  'in_progress': 'В работе',
+  'completed': 'Выполнено',
+  'archived': 'В архиве',
 } as const;
 
-// Board type labels
+// Board type labels - updated to match BoardType enum
 export const boardTypeLabels = {
   'notes': 'Заметки',
   'kanban': 'Kanban',
   'checklist': 'Чеклист',
-  'time-manager': 'Время',
+  'time_manager': 'Время',
   'calendar': 'Календарь',
-  'habit-tracker': 'Привычки',
+  'habit_tracker': 'Привычки',
 } as const;
 
 export const boardTypeIcons = {
   'notes': 'FileText',
   'kanban': 'Columns',
   'checklist': 'CheckSquare',
-  'time-manager': 'Clock',
+  'time_manager': 'Clock',
   'calendar': 'Calendar',
-  'habit-tracker': 'Target',
+  'habit_tracker': 'Target',
 } as const;
 
 // Generate unique ID

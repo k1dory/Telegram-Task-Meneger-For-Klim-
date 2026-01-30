@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Folder, BoardType } from '@/types';
+import type { Folder } from '@/types';
 import { foldersApi, type CreateFolderDto, type UpdateFolderDto } from '@/api';
 
 interface FoldersState {
@@ -29,7 +29,8 @@ export const useFoldersStore = create<FoldersState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await foldersApi.getAll();
-      set({ folders: response.data.items, isLoading: false });
+      // API returns data directly, response is Folder[]
+      set({ folders: response, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch folders',
@@ -42,7 +43,7 @@ export const useFoldersStore = create<FoldersState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await foldersApi.getById(id);
-      set({ currentFolder: response.data, isLoading: false });
+      set({ currentFolder: response, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch folder',
@@ -54,8 +55,7 @@ export const useFoldersStore = create<FoldersState>((set, get) => ({
   createFolder: async (data: CreateFolderDto) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await foldersApi.create(data);
-      const newFolder = response.data;
+      const newFolder = await foldersApi.create(data);
       set((state) => ({
         folders: [...state.folders, newFolder],
         isLoading: false,
@@ -73,8 +73,7 @@ export const useFoldersStore = create<FoldersState>((set, get) => ({
   updateFolder: async (id: string, data: UpdateFolderDto) => {
     set({ error: null });
     try {
-      const response = await foldersApi.update(id, data);
-      const updatedFolder = response.data;
+      const updatedFolder = await foldersApi.update(id, data);
       set((state) => ({
         folders: state.folders.map((f) => (f.id === id ? updatedFolder : f)),
         currentFolder:

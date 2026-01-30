@@ -1,11 +1,17 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import type { ApiResponse } from '@/types';
+import type { User } from '@/types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const TOKEN_KEY = 'taskmanager_token';
+
+interface AuthResponse {
+  token: string;
+  user: User;
+}
 
 class ApiClient {
   private client: AxiosInstance;
-  private initData: string = '';
+  private token: string = '';
 
   constructor() {
     this.client = axios.create({
@@ -16,25 +22,48 @@ class ApiClient {
       },
     });
 
+    // Load token from localStorage
+    this.token = localStorage.getItem(TOKEN_KEY) || '';
+
     this.setupInterceptors();
   }
 
-  setInitData(initData: string) {
-    this.initData = initData;
+  // Authenticate with Telegram initData and get JWT
+  async authenticate(initData: string): Promise<AuthResponse> {
+    const response = await this.client.post<AuthResponse>('/auth/telegram', {
+      init_data: initData,
+    });
+
+    this.token = response.data.token;
+    localStorage.setItem(TOKEN_KEY, this.token);
+
+    return response.data;
+  }
+
+  // Check if user is authenticated
+  isAuthenticated(): boolean {
+    return !!this.token;
+  }
+
+  // Clear token on logout
+  logout(): void {
+    this.token = '';
+    localStorage.removeItem(TOKEN_KEY);
+  }
+
+  // Get current user
+  async getCurrentUser(): Promise<User> {
+    const response = await this.client.get<User>('/auth/me');
+    return response.data;
   }
 
   private setupInterceptors() {
     // Request interceptor
     this.client.interceptors.request.use(
       (config) => {
-        // Add Telegram init data for authentication
-        if (this.initData) {
-          config.headers['X-Telegram-Init-Data'] = this.initData;
-        }
-
-        // Add Telegram WebApp data if available
-        if (window.Telegram?.WebApp?.initData) {
-          config.headers['X-Telegram-Init-Data'] = window.Telegram.WebApp.initData;
+        // Add JWT token for authentication
+        if (this.token) {
+          config.headers['Authorization'] = `Bearer ${this.token}`;
         }
 
         return config;
@@ -47,8 +76,9 @@ class ApiClient {
       (response: AxiosResponse) => response,
       async (error: AxiosError) => {
         if (error.response?.status === 401) {
-          // Handle unauthorized - trigger re-auth if needed
-          console.error('Unauthorized request');
+          // Token expired or invalid - clear and trigger re-auth
+          this.logout();
+          console.error('Unauthorized - please re-authenticate');
         }
 
         if (error.response?.status === 429) {
@@ -72,28 +102,28 @@ class ApiClient {
     return new Error(error.message || 'An unexpected error occurred');
   }
 
-  async get<T>(url: string, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    const response = await this.client.get<ApiResponse<T>>(url, config);
+  async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.get<T>(url, config);
     return response.data;
   }
 
-  async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    const response = await this.client.post<ApiResponse<T>>(url, data, config);
+  async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.post<T>(url, data, config);
     return response.data;
   }
 
-  async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    const response = await this.client.put<ApiResponse<T>>(url, data, config);
+  async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.put<T>(url, data, config);
     return response.data;
   }
 
-  async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    const response = await this.client.patch<ApiResponse<T>>(url, data, config);
+  async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.patch<T>(url, data, config);
     return response.data;
   }
 
-  async delete<T>(url: string, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    const response = await this.client.delete<ApiResponse<T>>(url, config);
+  async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.delete<T>(url, config);
     return response.data;
   }
 }

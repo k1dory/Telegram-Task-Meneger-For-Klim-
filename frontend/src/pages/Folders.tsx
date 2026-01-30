@@ -2,17 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PageHeader } from '@/components/layout';
-import { Card, Button, Input, Progress, Modal, ColorPicker, Select } from '@/components/ui';
+import { Card, Button, Input, Progress, Modal, ColorPicker } from '@/components/ui';
 import { useFoldersStore, useAppStore } from '@/store';
-import { cn, boardTypeLabels, calculateProgress } from '@/utils';
+import { cn, boardTypeLabels } from '@/utils';
 import type { BoardType } from '@/types';
 
 const folderIcons = ['📁', '💼', '🎯', '📚', '💡', '🚀', '⭐', '🔥', '💪', '🎨', '📝', '✅'];
-
-const boardOptions = Object.entries(boardTypeLabels).map(([value, label]) => ({
-  value,
-  label,
-}));
 
 const Folders = () => {
   const { folders, fetchFolders, createFolder, deleteFolder, isLoading } = useFoldersStore();
@@ -22,7 +17,6 @@ const Folders = () => {
     name: '',
     color: '#8b5cf6',
     icon: '📁',
-    boardTypes: ['checklist'] as BoardType[],
   });
 
   useEffect(() => {
@@ -43,24 +37,15 @@ const Folders = () => {
         name: '',
         color: '#8b5cf6',
         icon: '📁',
-        boardTypes: ['checklist'],
       });
     } catch (error) {
       console.error('Failed to create folder:', error);
     }
   };
 
-  const toggleBoardType = (type: BoardType) => {
-    setNewFolder((prev) => ({
-      ...prev,
-      boardTypes: prev.boardTypes.includes(type)
-        ? prev.boardTypes.filter((t) => t !== type)
-        : [...prev.boardTypes, type],
-    }));
-  };
-
   const FolderCard = ({ folder }: { folder: typeof folders[0] }) => {
-    const progress = calculateProgress(folder.completedCount, folder.taskCount);
+    const boardTypes = folder.boards?.map(b => b.type as BoardType) || [];
+    const boardCount = boardTypes.length;
 
     return (
       <motion.div
@@ -88,12 +73,12 @@ const Folders = () => {
                 className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
                 style={{ backgroundColor: `${folder.color}20` }}
               >
-                {folder.icon}
+                {folder.icon || '📁'}
               </div>
               <div className="text-right">
-                <p className="text-xs text-dark-400">Задачи</p>
+                <p className="text-xs text-dark-400">Досок</p>
                 <p className="text-sm font-medium text-dark-200">
-                  {folder.completedCount}/{folder.taskCount}
+                  {boardCount}
                 </p>
               </div>
             </div>
@@ -101,7 +86,7 @@ const Folders = () => {
             <h3 className="font-semibold text-dark-100 mb-1">{folder.name}</h3>
 
             <div className="flex flex-wrap gap-1 mb-3">
-              {folder.boardTypes.slice(0, 3).map((type) => (
+              {boardTypes.slice(0, 3).map((type) => (
                 <span
                   key={type}
                   className="text-[10px] px-1.5 py-0.5 bg-dark-700 text-dark-300 rounded"
@@ -109,15 +94,15 @@ const Folders = () => {
                   {boardTypeLabels[type]}
                 </span>
               ))}
-              {folder.boardTypes.length > 3 && (
+              {boardTypes.length > 3 && (
                 <span className="text-[10px] px-1.5 py-0.5 bg-dark-700 text-dark-300 rounded">
-                  +{folder.boardTypes.length - 3}
+                  +{boardTypes.length - 3}
                 </span>
               )}
             </div>
 
-            <Progress value={progress} size="sm" color="primary" animated={false} />
-            <p className="text-xs text-dark-500 mt-1">{progress}% выполнено</p>
+            <Progress value={0} size="sm" color="primary" animated={false} />
+            <p className="text-xs text-dark-500 mt-1">0% выполнено</p>
           </Card>
         </Link>
       </motion.div>
@@ -241,30 +226,6 @@ const Folders = () => {
             value={newFolder.color}
             onChange={(color) => setNewFolder((prev) => ({ ...prev, color }))}
           />
-
-          {/* Board Types */}
-          <div>
-            <label className="block text-sm font-medium text-dark-200 mb-2">
-              Типы досок
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {boardOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => toggleBoardType(option.value as BoardType)}
-                  className={cn(
-                    'px-3 py-1.5 rounded-lg text-sm transition-all',
-                    newFolder.boardTypes.includes(option.value as BoardType)
-                      ? 'bg-primary-500 text-white'
-                      : 'bg-dark-700 text-dark-300 hover:bg-dark-600'
-                  )}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </Modal>
     </motion.div>

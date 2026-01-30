@@ -125,8 +125,8 @@ func main() {
 	router.Use(middleware.CORS())
 	router.Use(middleware.ErrorHandler())
 
-	// Health check
-	router.GET("/health", func(c *gin.Context) {
+	// Health check handler
+	healthHandler := func(c *gin.Context) {
 		if err := database.HealthCheck(c.Request.Context(), dbPool); err != nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{
 				"status": "unhealthy",
@@ -138,7 +138,9 @@ func main() {
 			"status": "healthy",
 			"db":     database.GetPoolStats(dbPool),
 		})
-	})
+	}
+	router.GET("/health", healthHandler)
+	router.GET("/api/health", healthHandler)
 
 	// API routes
 	api := router.Group("/api")

@@ -25,13 +25,13 @@ const Home = () => {
     return new Date(t.dueDate).toDateString() === today;
   });
 
-  const completedToday = todayTasks.filter((t) => t.status === 'done').length;
+  const completedToday = todayTasks.filter((t) => t.status === 'completed').length;
   const totalToday = todayTasks.length;
   const todayProgress = totalToday > 0 ? (completedToday / totalToday) * 100 : 0;
 
   const totalTasks = tasks.length;
-  const completedTasks = tasks.filter((t) => t.status === 'done').length;
-  const inProgressTasks = tasks.filter((t) => t.status === 'in-progress').length;
+  const completedTasks = tasks.filter((t) => t.status === 'completed').length;
+  const inProgressTasks = tasks.filter((t) => t.status === 'in_progress').length;
 
   // Mock data for chart
   const chartData = Array.from({ length: 7 }, (_, i) => {
@@ -144,12 +144,12 @@ const Home = () => {
                   <div
                     className={cn(
                       'w-5 h-5 rounded-full border-2 flex items-center justify-center',
-                      task.status === 'done'
+                      task.status === 'completed'
                         ? 'bg-green-500 border-green-500'
                         : 'border-dark-500'
                     )}
                   >
-                    {task.status === 'done' && (
+                    {task.status === 'completed' && (
                       <svg
                         className="w-3 h-3 text-white"
                         fill="none"
@@ -169,7 +169,7 @@ const Home = () => {
                     <p
                       className={cn(
                         'text-sm font-medium truncate',
-                        task.status === 'done'
+                        task.status === 'completed'
                           ? 'text-dark-400 line-through'
                           : 'text-dark-100'
                       )}
@@ -180,16 +180,16 @@ const Home = () => {
                   <Badge
                     size="sm"
                     variant={
-                      task.status === 'done'
+                      task.status === 'completed'
                         ? 'success'
-                        : task.status === 'in-progress'
+                        : task.status === 'in_progress'
                         ? 'primary'
                         : 'default'
                     }
                   >
-                    {task.status === 'done'
+                    {task.status === 'completed'
                       ? 'Готово'
-                      : task.status === 'in-progress'
+                      : task.status === 'in_progress'
                       ? 'В работе'
                       : 'К выполнению'}
                   </Badge>
@@ -210,10 +210,8 @@ const Home = () => {
         </div>
         <div className="grid grid-cols-2 gap-3">
           {folders.slice(0, 4).map((folder) => {
-            const progress =
-              folder.taskCount > 0
-                ? (folder.completedCount / folder.taskCount) * 100
-                : 0;
+            // Task counts not available in folder response
+            const boardCount = folder.boards?.length || 0;
 
             return (
               <Link key={folder.id} to={`/folders/${folder.id}`}>
@@ -224,13 +222,13 @@ const Home = () => {
                   style={{ borderLeftColor: folder.color, borderLeftWidth: 3 }}
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <span className="text-2xl">{folder.icon}</span>
+                    <span className="text-2xl">{folder.icon || '📁'}</span>
                     <span className="text-xs text-dark-400">
-                      {folder.completedCount}/{folder.taskCount}
+                      {boardCount} досок
                     </span>
                   </div>
                   <h4 className="font-medium text-dark-100 mb-2">{folder.name}</h4>
-                  <Progress value={progress} size="sm" color="primary" animated={false} />
+                  <Progress value={0} size="sm" color="primary" animated={false} />
                 </Card>
               </Link>
             );

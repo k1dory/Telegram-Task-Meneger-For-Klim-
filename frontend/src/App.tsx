@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { AppShell } from '@/components/layout';
@@ -8,58 +8,94 @@ import { useTelegram } from '@/hooks';
 import { apiClient } from '@/api';
 
 function App() {
-  const { setUser, setTelegramUser, setIsLoading } = useAppStore();
+  const { setUser, setTelegramUser, setIsLoading, setError } = useAppStore();
   const { isReady, user: telegramUser, initData } = useTelegram();
+  const [authAttempted, setAuthAttempted] = useState(false);
 
   useEffect(() => {
-    if (isReady && telegramUser) {
-      // Set Telegram user data
-      setTelegramUser(telegramUser);
+    const authenticate = async () => {
+      if (!isReady || authAttempted) return;
 
-      // Set init data for API authentication
-      if (initData) {
-        apiClient.setInitData(initData);
+      setAuthAttempted(true);
+
+      if (telegramUser && initData) {
+        // Set Telegram user data
+        setTelegramUser(telegramUser);
+
+        try {
+          // Authenticate with backend and get JWT
+          const authResponse = await apiClient.authenticate(initData);
+          setUser(authResponse.user);
+        } catch (error) {
+          console.error('Authentication failed:', error);
+          // Fallback: use Telegram data directly if backend is unavailable
+          setUser({
+            id: telegramUser.id.toString(),
+            telegramId: telegramUser.id,
+            username: telegramUser.username,
+            firstName: telegramUser.first_name,
+            lastName: telegramUser.last_name,
+            photoUrl: telegramUser.photo_url,
+            isPremium: telegramUser.is_premium || false,
+            createdAt: new Date().toISOString(),
+            settings: {
+              theme: 'dark',
+              notifications: true,
+              language: telegramUser.language_code || 'ru',
+              defaultView: 'list',
+            },
+          });
+        }
+
+        setIsLoading(false);
+      } else if (!telegramUser) {
+        // Development mode - try to use stored token or show dev message
+        if (apiClient.isAuthenticated()) {
+          try {
+            const user = await apiClient.getCurrentUser();
+            setUser(user);
+          } catch {
+            // Token expired, create dev user
+            setUser({
+              id: 'dev-user',
+              telegramId: 123456789,
+              username: 'developer',
+              firstName: 'Developer',
+              lastName: 'User',
+              isPremium: false,
+              createdAt: new Date().toISOString(),
+              settings: {
+                theme: 'dark',
+                notifications: true,
+                language: 'ru',
+                defaultView: 'list',
+              },
+            });
+          }
+        } else {
+          // No token, create dev user for local development
+          setUser({
+            id: 'dev-user',
+            telegramId: 123456789,
+            username: 'developer',
+            firstName: 'Developer',
+            lastName: 'User',
+            isPremium: false,
+            createdAt: new Date().toISOString(),
+            settings: {
+              theme: 'dark',
+              notifications: true,
+              language: 'ru',
+              defaultView: 'list',
+            },
+          });
+        }
+        setIsLoading(false);
       }
+    };
 
-      // Create mock user for now (in production, this would come from backend)
-      setUser({
-        id: telegramUser.id.toString(),
-        telegramId: telegramUser.id,
-        username: telegramUser.username,
-        firstName: telegramUser.first_name,
-        lastName: telegramUser.last_name,
-        photoUrl: telegramUser.photo_url,
-        isPremium: telegramUser.is_premium || false,
-        createdAt: new Date().toISOString(),
-        settings: {
-          theme: 'dark',
-          notifications: true,
-          language: telegramUser.language_code || 'ru',
-          defaultView: 'list',
-        },
-      });
-
-      setIsLoading(false);
-    } else if (isReady && !telegramUser) {
-      // Development mode - create mock user
-      setUser({
-        id: 'dev-user',
-        telegramId: 123456789,
-        username: 'developer',
-        firstName: 'Developer',
-        lastName: 'User',
-        isPremium: false,
-        createdAt: new Date().toISOString(),
-        settings: {
-          theme: 'dark',
-          notifications: true,
-          language: 'ru',
-          defaultView: 'list',
-        },
-      });
-      setIsLoading(false);
-    }
-  }, [isReady, telegramUser, initData, setUser, setTelegramUser, setIsLoading]);
+    authenticate();
+  }, [isReady, telegramUser, initData, authAttempted, setUser, setTelegramUser, setIsLoading, setError]);
 
   return (
     <BrowserRouter>
