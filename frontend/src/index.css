@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,6 +7,41 @@
 @layer base {
   :root {
     --vh: 1vh;
+    --color-primary-50: 245 243 255;
+    --color-primary-100: 237 233 254;
+    --color-primary-200: 221 214 254;
+    --color-primary-300: 196 181 253;
+    --color-primary-400: 167 139 250;
+    --color-primary-500: 139 92 246;
+    --color-primary-600: 124 58 237;
+    --color-primary-700: 109 40 217;
+    --color-primary-800: 91 33 182;
+    --color-primary-900: 76 29 149;
+    --color-dark-50: 248 250 252;
+    --color-dark-100: 241 245 249;
+    --color-dark-200: 226 232 240;
+    --color-dark-300: 203 213 225;
+    --color-dark-400: 148 163 184;
+    --color-dark-500: 100 116 139;
+    --color-dark-600: 71 85 105;
+    --color-dark-700: 51 65 85;
+    --color-dark-800: 30 41 59;
+    --color-dark-900: 15 23 42;
+    --color-dark-950: 2 6 23;
+  }
+
+  :root[data-theme='light'] {
+    --color-dark-50: 15 23 42;
+    --color-dark-100: 30 41 59;
+    --color-dark-200: 51 65 85;
+    --color-dark-300: 71 85 105;
+    --color-dark-400: 100 116 139;
+    --color-dark-500: 148 163 184;
+    --color-dark-600: 203 213 225;
+    --color-dark-700: 226 232 240;
+    --color-dark-800: 241 245 249;
+    --color-dark-900: 248 250 252;
+    --color-dark-950: 255 255 255;
   }
 
   * {
@@ -13,7 +50,7 @@
   }
 
   html {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Manrope', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -85,9 +122,9 @@
   select:-webkit-autofill,
   select:-webkit-autofill:hover,
   select:-webkit-autofill:focus {
-    -webkit-box-shadow: 0 0 0px 1000px #1e293b inset !important;
-    -webkit-text-fill-color: #f8fafc !important;
-    caret-color: #f8fafc;
+    -webkit-box-shadow: 0 0 0px 1000px rgb(var(--color-dark-800)) inset !important;
+    -webkit-text-fill-color: rgb(var(--color-dark-50)) !important;
+    caret-color: rgb(var(--color-dark-50));
   }
 }
 

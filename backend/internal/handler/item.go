@@ -49,10 +49,41 @@ func (h *ItemHandler) ListItems(c *gin.Context) {
 		return
 	}
 
-	var filter *domain.ItemFilter
+	// Build filter from query params
+	filter := &domain.ItemFilter{}
+	hasFilter := false
+
 	if status := c.Query("status"); status != "" {
 		s := domain.ItemStatus(status)
-		filter = &domain.ItemFilter{Status: &s}
+		filter.Status = &s
+		hasFilter = true
+	}
+
+	if dueBefore := c.Query("due_before"); dueBefore != "" {
+		if t, err := time.Parse("2006-01-02", dueBefore); err == nil {
+			// Set to end of day
+			t = t.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+			filter.DueBefore = &t
+			hasFilter = true
+		}
+	}
+
+	if dueAfter := c.Query("due_after"); dueAfter != "" {
+		if t, err := time.Parse("2006-01-02", dueAfter); err == nil {
+			filter.DueAfter = &t
+			hasFilter = true
+		}
+	}
+
+	if parentID := c.Query("parent_id"); parentID != "" {
+		if pid, err := uuid.Parse(parentID); err == nil {
+			filter.ParentID = &pid
+			hasFilter = true
+		}
+	}
+
+	if !hasFilter {
+		filter = nil
 	}
 
 	items, err := h.itemService.GetItemsByBoard(c.Request.Context(), userID, boardID, filter)
@@ -485,7 +516,13 @@ func (h *ItemHandler) CompleteHabit(c *gin.Context) {
 		return
 	}
 
-	if err := h.itemService.CompleteHabit(c.Request.Context(), userID, itemID, req.Date); err != nil {
+	date, err := req.ParseDate()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date format, expected YYYY-MM-DD"})
+		return
+	}
+
+	if err := h.itemService.CompleteHabit(c.Request.Context(), userID, itemID, date); err != nil {
 		switch err {
 		case domain.ErrNotFound:
 			c.JSON(http.StatusNotFound, gin.H{"error": "item not found"})
@@ -498,6 +535,60 @@ func (h *ItemHandler) CompleteHabit(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "habit completed"})
+}
+
+// UncompleteHabit handles DELETE /api/items/:id/habit/complete
+// @Summary Uncomplete habit
+// @Description Removes a habit completion for a specific date
+// @Tags items
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Item ID"
+// @Param request body domain.CompleteHabitRequest true "Completion date"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Router /api/items/{id}/habit/complete [delete]
+func (h *ItemHandler) UncompleteHabit(c *gin.Context) {
+	userID, err := GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	itemID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid item ID"})
+		return
+	}
+
+	var req domain.CompleteHabitRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	date, err := req.ParseDate()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date format, expected YYYY-MM-DD"})
+		return
+	}
+
+	if err := h.itemService.UncompleteHabit(c.Request.Context(), userID, itemID, date); err != nil {
+		switch err {
+		case domain.ErrNotFound:
+			c.JSON(http.StatusNotFound, gin.H{"error": "item not found"})
+		case domain.ErrForbidden:
+			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to uncomplete habit"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "habit uncompleted"})
 }
 
 // GetHabitCompletions handles GET /api/items/:id/habit/completions

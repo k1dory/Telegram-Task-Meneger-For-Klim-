@@ -1,50 +1,46 @@
 import { create } from 'zustand';
 import { format } from 'date-fns';
-import type { Habit, HabitCompletion } from '@/types';
-import { habitsApi, type CreateHabitDto, type UpdateHabitDto, type HabitFilters } from '@/api';
+import type { Item, HabitCompletion } from '@/types';
+import { itemsApi } from '@/api';
 
 interface HabitsState {
-  habits: Habit[];
-  currentHabit: Habit | null;
+  habits: Item[];
+  completions: Record<string, HabitCompletion[]>; // habitId -> completions
+  currentHabit: Item | null;
   isLoading: boolean;
   error: string | null;
-  filters: HabitFilters;
+  currentBoardId: string | null;
   selectedDate: string;
 
   // Actions
-  fetchHabits: (filters?: HabitFilters) => Promise<void>;
+  fetchHabits: (boardId: string) => Promise<void>;
   fetchHabitById: (id: string) => Promise<void>;
-  createHabit: (data: CreateHabitDto) => Promise<Habit>;
-  updateHabit: (id: string, data: UpdateHabitDto) => Promise<void>;
+  fetchCompletions: (id: string, from?: string, to?: string) => Promise<void>;
+  createHabit: (boardId: string, data: { title: string; content?: string; metadata?: Record<string, unknown> }) => Promise<Item>;
+  updateHabit: (id: string, data: Partial<Item>) => Promise<void>;
   deleteHabit: (id: string) => Promise<void>;
   markComplete: (id: string, date?: string) => Promise<void>;
-  markIncomplete: (id: string, date?: string) => Promise<void>;
-  setCurrentHabit: (habit: Habit | null) => void;
+  setCurrentHabit: (habit: Item | null) => void;
   setSelectedDate: (date: string) => void;
-  setFilters: (filters: HabitFilters) => void;
   isCompletedOnDate: (habitId: string, date: string) => boolean;
   clearError: () => void;
 }
 
 export const useHabitsStore = create<HabitsState>((set, get) => ({
   habits: [],
+  completions: {},
   currentHabit: null,
   isLoading: false,
   error: null,
-  filters: {},
+  currentBoardId: null,
   selectedDate: format(new Date(), 'yyyy-MM-dd'),
 
-  fetchHabits: async (filters?: HabitFilters) => {
-    const currentFilters = filters || get().filters;
-    set({ isLoading: true, error: null });
+  fetchHabits: async (boardId: string) => {
+    set({ isLoading: true, error: null, currentBoardId: boardId });
 
     try {
-      const response = await habitsApi.getAll(currentFilters);
-      set({
-        habits: response.items,
-        filters: currentFilters,
-        isLoading: false,
-      });
+      const habits = await itemsApi.getByBoard(boardId);
+      set({ habits, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch habits',
@@ -56,8 +52,8 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
   fetchHabitById: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await habitsApi.getById(id);
-      set({ currentHabit: response, isLoading: false });
+      const habit = await itemsApi.getById(id);
+      set({ currentHabit: habit, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch habit',
@@ -66,10 +62,24 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
     }
   },
 
-  createHabit: async (data: CreateHabitDto) => {
+  fetchCompletions: async (id: string, from?: string, to?: string) => {
+    try {
+      const completions = await itemsApi.getHabitCompletions(id, from, to);
+      set((state) => ({
+        completions: { ...state.completions, [id]: completions }
+      }));
+    } catch (error) {
+      console.error('Failed to fetch completions:', error);
+    }
+  },
+
+  createHabit: async (boardId, data) => {
     set({ error: null });
     try {
-      const newHabit = await habitsApi.create(data);
+      const newHabit = await itemsApi.create(boardId, {
+        ...data,
+        status: 'pending',
+      });
       set((state) => ({
         habits: [...state.habits, newHabit],
       }));
@@ -82,10 +92,10 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
     }
   },
 
-  updateHabit: async (id: string, data: UpdateHabitDto) => {
+  updateHabit: async (id: string, data) => {
     set({ error: null });
     try {
-      const updatedHabit = await habitsApi.update(id, data);
+      const updatedHabit = await itemsApi.update(id, data);
       set((state) => ({
         habits: state.habits.map((h) => (h.id === id ? updatedHabit : h)),
         currentHabit: state.currentHabit?.id === id ? updatedHabit : state.currentHabit,
@@ -101,7 +111,7 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
   deleteHabit: async (id: string) => {
     set({ error: null });
     try {
-      await habitsApi.delete(id);
+      await itemsApi.delete(id);
       set((state) => ({
         habits: state.habits.filter((h) => h.id !== id),
         currentHabit: state.currentHabit?.id === id ? null : state.currentHabit,
@@ -116,65 +126,22 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
 
   markComplete: async (id: string, date?: string) => {
     const targetDate = date || get().selectedDate;
-    const habit = get().habits.find((h) => h.id === id);
-    if (!habit) return;
-
-    // Optimistic update
-    const newCompletion: HabitCompletion = { date: targetDate, completed: true };
-    const updatedCompletions = [
-      ...habit.completions.filter((c) => c.date !== targetDate),
-      newCompletion,
-    ];
-
-    set((state) => ({
-      habits: state.habits.map((h) =>
-        h.id === id
-          ? {
-              ...h,
-              completions: updatedCompletions,
-              streak: h.streak + 1,
-            }
-          : h
-      ),
-    }));
+    const isAlreadyCompleted = get().isCompletedOnDate(id, targetDate);
 
     try {
-      await habitsApi.markComplete(id, targetDate);
+      if (isAlreadyCompleted) {
+        // Uncomplete
+        await itemsApi.uncompleteHabit(id, targetDate);
+      } else {
+        // Complete
+        await itemsApi.completeHabit(id, targetDate);
+      }
+      // Refresh completions
+      await get().fetchCompletions(id);
     } catch (error) {
-      // Revert on error
-      set((state) => ({
-        habits: state.habits.map((h) => (h.id === id ? habit : h)),
-        error: error instanceof Error ? error.message : 'Failed to mark complete',
-      }));
-    }
-  },
-
-  markIncomplete: async (id: string, date?: string) => {
-    const targetDate = date || get().selectedDate;
-    const habit = get().habits.find((h) => h.id === id);
-    if (!habit) return;
-
-    // Optimistic update
-    set((state) => ({
-      habits: state.habits.map((h) =>
-        h.id === id
-          ? {
-              ...h,
-              completions: h.completions.filter((c) => c.date !== targetDate),
-              streak: Math.max(0, h.streak - 1),
-            }
-          : h
-      ),
-    }));
-
-    try {
-      await habitsApi.markIncomplete(id, targetDate);
-    } catch (error) {
-      // Revert on error
-      set((state) => ({
-        habits: state.habits.map((h) => (h.id === id ? habit : h)),
-        error: error instanceof Error ? error.message : 'Failed to mark incomplete',
-      }));
+      set({
+        error: error instanceof Error ? error.message : 'Failed to toggle habit',
+      });
     }
   },
 
@@ -182,12 +149,9 @@ export const useHabitsStore = create<HabitsState>((set, get) => ({
 
   setSelectedDate: (selectedDate) => set({ selectedDate }),
 
-  setFilters: (filters) => set({ filters }),
-
   isCompletedOnDate: (habitId: string, date: string) => {
-    const habit = get().habits.find((h) => h.id === habitId);
-    if (!habit) return false;
-    return habit.completions.some((c) => c.date === date && c.completed);
+    const habitCompletions = get().completions[habitId] || [];
+    return habitCompletions.some((c) => c.completed_date.startsWith(date));
   },
 
   clearError: () => set({ error: null }),

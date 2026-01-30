@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { TaskStatus, TaskPriority } from '@/types';
+import type { TaskStatus, TaskPriority, ItemMetadata } from '@/types';
 
 // Task is an Item with task-specific metadata
 export interface Task {
@@ -12,12 +12,7 @@ export interface Task {
   position: number;
   due_date?: string;
   completed_at?: string;
-  metadata: {
-    priority?: TaskPriority;
-    tags?: string[];
-    estimated_time?: number;
-    time_spent?: number;
-  };
+  metadata: ItemMetadata;
   created_at: string;
   updated_at: string;
   children?: Task[];
@@ -28,11 +23,7 @@ export interface CreateTaskDto {
   content?: string;
   status?: TaskStatus;
   due_date?: string;
-  metadata?: {
-    priority?: TaskPriority;
-    tags?: string[];
-    estimated_time?: number;
-  };
+  metadata?: Partial<ItemMetadata>;
 }
 
 export interface UpdateTaskDto {
@@ -40,12 +31,7 @@ export interface UpdateTaskDto {
   content?: string;
   status?: TaskStatus;
   due_date?: string | null;
-  metadata?: {
-    priority?: TaskPriority;
-    tags?: string[];
-    estimated_time?: number | null;
-    time_spent?: number;
-  };
+  metadata?: Partial<ItemMetadata>;
 }
 
 export interface TaskFilters {

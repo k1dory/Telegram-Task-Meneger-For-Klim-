@@ -1,34 +1,34 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence, Reorder } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTasksStore, useAppStore } from '@/store';
-import { Card, Badge, Button } from '@/components/ui';
-import { cn, statusColors, statusLabels, priorityColors, formatRelativeDate } from '@/utils';
-import type { Task, TaskStatus } from '@/types';
+import { Card, Badge } from '@/components/ui';
+import { cn, statusColors, priorityColors, formatRelativeDate } from '@/utils';
+import type { Item, ItemStatus } from '@/types';
 
 interface KanbanBoardProps {
-  folderId: string;
+  boardId: string;
 }
 
-const columns: { id: TaskStatus; title: string }[] = [
+const columns: { id: ItemStatus; title: string }[] = [
   { id: 'pending', title: 'К выполнению' },
   { id: 'in_progress', title: 'В работе' },
   { id: 'completed', title: 'Выполнено' },
 ];
 
-const KanbanBoard = ({ folderId }: KanbanBoardProps) => {
-  const { tasks, fetchTasks, updateTaskStatus, isLoading } = useTasksStore();
+const KanbanBoard = ({ boardId }: KanbanBoardProps) => {
+  const { tasks, fetchTasks, completeTask, updateTask, isLoading } = useTasksStore();
   const { openModal } = useAppStore();
-  const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+  const [draggedTask, setDraggedTask] = useState<Item | null>(null);
 
   useEffect(() => {
-    fetchTasks({ folderId });
-  }, [folderId, fetchTasks]);
+    fetchTasks(boardId);
+  }, [boardId, fetchTasks]);
 
-  const getTasksByStatus = (status: TaskStatus) => {
+  const getTasksByStatus = (status: ItemStatus) => {
     return tasks.filter((task) => task.status === status);
   };
 
-  const handleDragStart = (task: Task) => {
+  const handleDragStart = (task: Item) => {
     setDraggedTask(task);
   };
 
@@ -36,87 +36,90 @@ const KanbanBoard = ({ folderId }: KanbanBoardProps) => {
     setDraggedTask(null);
   };
 
-  const handleDrop = (status: TaskStatus) => {
+  const handleDrop = async (status: ItemStatus) => {
     if (draggedTask && draggedTask.status !== status) {
-      updateTaskStatus(draggedTask.id, status);
+      if (status === 'completed') {
+        // Use complete endpoint to properly set completed_at
+        await completeTask(draggedTask.id, true);
+      } else if (draggedTask.status === 'completed') {
+        // Moving from completed - uncomplete
+        await completeTask(draggedTask.id, false);
+        // Then update status
+        await updateTask(draggedTask.id, { status });
+      } else {
+        // Just update status
+        await updateTask(draggedTask.id, { status });
+      }
     }
     setDraggedTask(null);
   };
 
-  const TaskCard = ({ task }: { task: Task }) => (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      draggable
-      onDragStart={() => handleDragStart(task)}
-      onDragEnd={handleDragEnd}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={() => openModal('editTask', task)}
-      className="cursor-pointer"
-    >
-      <Card variant="bordered" padding="sm" className="bg-dark-900">
-        <div className="flex items-start gap-2 mb-2">
-          <div
-            className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
-            style={{ backgroundColor: priorityColors[task.priority] }}
-          />
-          <h4 className="text-sm font-medium text-dark-100 line-clamp-2">{task.title}</h4>
-        </div>
+  const TaskCard = ({ task }: { task: Item }) => {
+    const priority = task.metadata?.priority || 'medium';
+    const tags = task.metadata?.tags || [];
 
-        {task.description && (
-          <p className="text-xs text-dark-500 line-clamp-2 mb-2 ml-4">
-            {task.description}
-          </p>
-        )}
-
-        <div className="flex items-center justify-between ml-4">
-          <div className="flex items-center gap-2">
-            {task.subtasks.length > 0 && (
-              <span className="text-xs text-dark-400 flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                  />
-                </svg>
-                {task.subtasks.filter((s) => s.completed).length}/{task.subtasks.length}
-              </span>
-            )}
-            {task.dueDate && (
-              <span className="text-xs text-dark-400 flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  />
-                </svg>
-                {formatRelativeDate(task.dueDate)}
-              </span>
-            )}
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        draggable
+        onDragStart={() => handleDragStart(task)}
+        onDragEnd={handleDragEnd}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => openModal('editTask', task)}
+        className="cursor-pointer"
+      >
+        <Card variant="bordered" padding="sm" className="bg-dark-900">
+          <div className="flex items-start gap-2 mb-2">
+            <div
+              className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
+              style={{ backgroundColor: priorityColors[priority] }}
+            />
+            <h4 className="text-sm font-medium text-dark-100 line-clamp-2">{task.title}</h4>
           </div>
-        </div>
 
-        {task.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2 ml-4">
-            {task.tags.slice(0, 2).map((tag) => (
-              <Badge key={tag} variant="default" size="sm">
-                {tag}
-              </Badge>
-            ))}
+          {task.content && (
+            <p className="text-xs text-dark-500 line-clamp-2 mb-2 ml-4">
+              {task.content}
+            </p>
+          )}
+
+          <div className="flex items-center justify-between ml-4">
+            <div className="flex items-center gap-2">
+              {task.due_date && (
+                <span className="text-xs text-dark-400 flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  {formatRelativeDate(task.due_date)}
+                </span>
+              )}
+            </div>
           </div>
-        )}
-      </Card>
-    </motion.div>
-  );
 
-  const Column = ({ status, title }: { status: TaskStatus; title: string }) => {
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2 ml-4">
+              {tags.slice(0, 2).map((tag) => (
+                <Badge key={tag} variant="default" size="sm">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </Card>
+      </motion.div>
+    );
+  };
+
+  const Column = ({ status, title }: { status: ItemStatus; title: string }) => {
     const columnTasks = getTasksByStatus(status);
     const [isOver, setIsOver] = useState(false);
 
@@ -150,7 +153,7 @@ const KanbanBoard = ({ folderId }: KanbanBoardProps) => {
             </span>
           </div>
           <button
-            onClick={() => openModal('createTask', { folderId, status })}
+            onClick={() => openModal('createTask', { boardId, status })}
             className="p-1 rounded-lg hover:bg-dark-700 transition-colors"
           >
             <svg className="w-4 h-4 text-dark-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

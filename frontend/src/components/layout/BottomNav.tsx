@@ -75,7 +75,15 @@ const navItems = [
 ];
 
 const BottomNav = () => {
-  const { openModal } = useAppStore();
+  const { openModal, lastActiveBoardId } = useAppStore();
+
+  const handleCreateClick = () => {
+    if (lastActiveBoardId) {
+      openModal('createTask', { boardId: lastActiveBoardId });
+    } else {
+      openModal('selectBoardForCreate');
+    }
+  };
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 lg:hidden">
@@ -86,7 +94,7 @@ const BottomNav = () => {
               return (
                 <button
                   key={item.path}
-                  onClick={() => openModal('createTask')}
+                  onClick={handleCreateClick}
                   className="relative -mt-6"
                 >
                   <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/30">

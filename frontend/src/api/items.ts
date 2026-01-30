@@ -116,6 +116,10 @@ export const itemsApi = {
     return apiClient.post<void>(`/items/${id}/habit/complete`, { date });
   },
 
+  async uncompleteHabit(id: string, date: string) {
+    return apiClient.delete<void>(`/items/${id}/habit/complete`, { data: { date } });
+  },
+
   async getHabitCompletions(id: string, from?: string, to?: string) {
     const params = new URLSearchParams();
     if (from) params.append('from', from);

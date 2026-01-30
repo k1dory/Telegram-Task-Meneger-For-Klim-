@@ -1,30 +1,31 @@
 import { create } from 'zustand';
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
-import type { CalendarEvent } from '@/types';
-import { calendarApi, type CreateEventDto, type UpdateEventDto } from '@/api';
+import type { Item } from '@/types';
+import { itemsApi } from '@/api';
 
 interface CalendarState {
-  events: CalendarEvent[];
-  currentEvent: CalendarEvent | null;
+  events: Item[];
+  currentEvent: Item | null;
   isLoading: boolean;
   error: string | null;
+  currentBoardId: string | null;
   currentMonth: Date;
   selectedDate: Date | null;
   viewMode: 'month' | 'week' | 'day';
 
   // Actions
-  fetchEvents: (folderId?: string) => Promise<void>;
+  fetchEvents: (boardId: string) => Promise<void>;
   fetchEventById: (id: string) => Promise<void>;
-  createEvent: (data: CreateEventDto) => Promise<CalendarEvent>;
-  updateEvent: (id: string, data: UpdateEventDto) => Promise<void>;
+  createEvent: (boardId: string, data: { title: string; content?: string; due_date?: string; metadata?: Record<string, unknown> }) => Promise<Item>;
+  updateEvent: (id: string, data: Partial<Item>) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
-  setCurrentEvent: (event: CalendarEvent | null) => void;
+  setCurrentEvent: (event: Item | null) => void;
   setCurrentMonth: (date: Date) => void;
   setSelectedDate: (date: Date | null) => void;
   setViewMode: (mode: 'month' | 'week' | 'day') => void;
   nextMonth: () => void;
   prevMonth: () => void;
-  getEventsForDate: (date: Date) => CalendarEvent[];
+  getEventsForDate: (date: Date) => Item[];
   clearError: () => void;
 }
 
@@ -33,20 +34,24 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   currentEvent: null,
   isLoading: false,
   error: null,
+  currentBoardId: null,
   currentMonth: new Date(),
   selectedDate: null,
   viewMode: 'month',
 
-  fetchEvents: async (folderId?: string) => {
+  fetchEvents: async (boardId: string) => {
     const { currentMonth } = get();
     const startDate = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
     const endDate = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
 
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, currentBoardId: boardId });
 
     try {
-      const response = await calendarApi.getAll({ folderId, startDate, endDate });
-      set({ events: response.items, isLoading: false });
+      const events = await itemsApi.getByBoard(boardId, {
+        due_after: startDate,
+        due_before: endDate,
+      });
+      set({ events, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch events',
@@ -58,8 +63,8 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   fetchEventById: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await calendarApi.getById(id);
-      set({ currentEvent: response, isLoading: false });
+      const event = await itemsApi.getById(id);
+      set({ currentEvent: event, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch event',
@@ -68,10 +73,13 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     }
   },
 
-  createEvent: async (data: CreateEventDto) => {
+  createEvent: async (boardId, data) => {
     set({ error: null });
     try {
-      const newEvent = await calendarApi.create(data);
+      const newEvent = await itemsApi.create(boardId, {
+        ...data,
+        status: 'pending',
+      });
       set((state) => ({
         events: [...state.events, newEvent],
       }));
@@ -84,10 +92,10 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     }
   },
 
-  updateEvent: async (id: string, data: UpdateEventDto) => {
+  updateEvent: async (id: string, data) => {
     set({ error: null });
     try {
-      const updatedEvent = await calendarApi.update(id, data);
+      const updatedEvent = await itemsApi.update(id, data);
       set((state) => ({
         events: state.events.map((e) => (e.id === id ? updatedEvent : e)),
         currentEvent: state.currentEvent?.id === id ? updatedEvent : state.currentEvent,
@@ -103,7 +111,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   deleteEvent: async (id: string) => {
     set({ error: null });
     try {
-      await calendarApi.delete(id);
+      await itemsApi.delete(id);
       set((state) => ({
         events: state.events.filter((e) => e.id !== id),
         currentEvent: state.currentEvent?.id === id ? null : state.currentEvent,
@@ -126,21 +134,34 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
 
   nextMonth: () => {
     set((state) => ({ currentMonth: addMonths(state.currentMonth, 1) }));
-    get().fetchEvents();
+    const { currentBoardId } = get();
+    if (currentBoardId) {
+      get().fetchEvents(currentBoardId);
+    }
   },
 
   prevMonth: () => {
     set((state) => ({ currentMonth: subMonths(state.currentMonth, 1) }));
-    get().fetchEvents();
+    const { currentBoardId } = get();
+    if (currentBoardId) {
+      get().fetchEvents(currentBoardId);
+    }
   },
 
   getEventsForDate: (date: Date) => {
     const { events } = get();
     const dateStr = format(date, 'yyyy-MM-dd');
     return events.filter((event) => {
-      const eventStart = format(new Date(event.startDate), 'yyyy-MM-dd');
-      const eventEnd = format(new Date(event.endDate), 'yyyy-MM-dd');
-      return dateStr >= eventStart && dateStr <= eventEnd;
+      // Check due_date or metadata.start_date/end_date
+      const eventStart = event.metadata?.start_date || event.due_date;
+      const eventEnd = event.metadata?.end_date || event.due_date;
+
+      if (!eventStart) return false;
+
+      const startStr = eventStart.split('T')[0];
+      const endStr = eventEnd ? eventEnd.split('T')[0] : startStr;
+
+      return dateStr >= startStr && dateStr <= endStr;
     });
   },
 

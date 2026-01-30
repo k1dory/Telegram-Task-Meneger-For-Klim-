@@ -1,21 +1,25 @@
-// User types
+// User types (from backend)
 export interface User {
-  id: string;
-  telegramId: number;
+  id: number;
+  telegram_id: number;
   username?: string;
-  firstName: string;
-  lastName?: string;
-  photoUrl?: string;
-  isPremium: boolean;
-  createdAt: string;
-  settings: UserSettings;
+  first_name: string;
+  last_name?: string;
+  photo_url?: string;
+  is_premium: boolean;
+  language_code: string;
+  notification_enabled: boolean;
+  reminder_hours: number[];
+  settings?: UserSettings;
+  last_active_at?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface UserSettings {
-  theme: 'dark' | 'light' | 'auto';
-  notifications: boolean;
-  language: string;
-  defaultView: 'list' | 'kanban' | 'calendar';
+  notification_enabled: boolean;
+  reminder_hours: number[];
+  language_code: string;
 }
 
 // Folder types (matches backend domain.Folder)
@@ -28,11 +32,19 @@ export interface Folder {
   position: number;
   created_at: string;
   updated_at: string;
-  boards?: Array<{
-    id: string;
-    name: string;
-    type: string;
-  }>;
+  boards?: Board[];
+}
+
+// Board types (matches backend domain.Board)
+export interface Board {
+  id: string;
+  folder_id: string;
+  name: string;
+  type: BoardType;
+  settings: Record<string, unknown>;
+  position: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export type BoardType =
@@ -43,140 +55,116 @@ export type BoardType =
   | 'calendar'
   | 'habit_tracker';
 
-// Task types
-export interface Task {
+// Item types (matches backend domain.Item - used for tasks, notes, habits, events)
+export interface Item {
   id: string;
-  folderId: string;
+  board_id: string;
+  parent_id?: string;
   title: string;
-  description?: string;
-  status: TaskStatus;
-  priority: TaskPriority;
-  dueDate?: string;
-  reminderAt?: string;
-  tags: string[];
-  subtasks: Subtask[];
-  timeSpent: number;
-  estimatedTime?: number;
-  createdAt: string;
-  updatedAt: string;
-  completedAt?: string;
+  content?: string;
+  status: ItemStatus;
+  position: number;
+  due_date?: string;
+  completed_at?: string;
+  metadata: ItemMetadata;
+  created_at: string;
+  updated_at: string;
+  children?: Item[];
 }
 
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'archived';
-export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type ItemStatus = 'pending' | 'in_progress' | 'completed' | 'archived';
+export type ItemPriority = 'low' | 'medium' | 'high' | 'urgent';
 
+// Subtask for checklists
 export interface Subtask {
   id: string;
   title: string;
   completed: boolean;
 }
 
-// Note types
-export interface Note {
-  id: string;
-  folderId: string;
-  title: string;
-  content: string;
-  color: string;
-  pinned: boolean;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
+// Metadata stored in item.metadata field
+export interface ItemMetadata {
+  // Task-specific
+  priority?: ItemPriority;
+  tags?: string[];
+  estimated_time?: number;
+  time_spent?: number;
+  timer_started?: string;
+
+  // Checklist-specific
+  subtasks?: Subtask[];
+
+  // Note-specific
+  color?: string;
+  pinned?: boolean;
+
+  // Habit-specific
+  icon?: string;
+  frequency?: HabitFrequency;
+  target_days?: number[];
+  streak?: number;
+  longest_streak?: number;
+
+  // Calendar event-specific
+  start_date?: string;
+  end_date?: string;
+  all_day?: boolean;
+  reminder?: number;
+
+  // Generic
+  [key: string]: unknown;
 }
 
-// Habit types
-export interface Habit {
-  id: string;
-  folderId: string;
-  name: string;
-  description?: string;
-  color: string;
-  icon: string;
-  frequency: HabitFrequency;
-  targetDays: number[];
-  streak: number;
-  longestStreak: number;
-  completions: HabitCompletion[];
-  createdAt: string;
-}
+// Legacy aliases for backward compatibility in UI
+export type Task = Item;
+export type TaskStatus = ItemStatus;
+export type TaskPriority = ItemPriority;
+export type Note = Item;
+export type Habit = Item;
+export type CalendarEvent = Item;
 
 export type HabitFrequency = 'daily' | 'weekly' | 'monthly';
 
+// Habit completion from backend
 export interface HabitCompletion {
+  id: string;
+  item_id: string;
+  completed_date: string;
+  created_at: string;
+}
+
+// Analytics types (from backend)
+export interface AnalyticsOverview {
+  total_tasks: number;
+  completed_tasks: number;
+  pending_tasks: number;
+  overdue_tasks: number;
+  completion_rate: number;
+  total_folders: number;
+  total_boards: number;
+  active_streaks: number;
+  tasks_today: number;
+  tasks_this_week: number;
+}
+
+export interface CompletionStats {
   date: string;
-  completed: boolean;
+  completed: number;
+  created: number;
 }
 
-// Time tracking types
-export interface TimeEntry {
-  id: string;
-  taskId: string;
-  startTime: string;
-  endTime?: string;
-  duration: number;
-  notes?: string;
-}
-
-// Calendar event types
-export interface CalendarEvent {
-  id: string;
-  folderId: string;
-  title: string;
-  description?: string;
-  startDate: string;
-  endDate: string;
-  allDay: boolean;
-  color: string;
-  reminder?: number;
-}
-
-// Kanban column types
-export interface KanbanColumn {
-  id: string;
-  title: string;
-  status: TaskStatus;
-  color: string;
-  taskIds: string[];
-}
-
-// Statistics types
-export interface Statistics {
-  totalTasks: number;
-  completedTasks: number;
-  totalTimeSpent: number;
-  averageCompletionTime: number;
-  tasksByStatus: Record<TaskStatus, number>;
-  tasksByPriority: Record<TaskPriority, number>;
-  completionsByDay: DayStats[];
-  habitStats: HabitStats[];
-}
-
+// For charts - alias for CompletionStats with optional timeSpent
 export interface DayStats {
   date: string;
   completed: number;
   created: number;
-  timeSpent: number;
+  timeSpent?: number;
 }
 
-export interface HabitStats {
-  habitId: string;
-  name: string;
-  completionRate: number;
-  currentStreak: number;
-}
-
-// API Response types
-export interface ApiResponse<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-  error?: string;
-}
-
-export interface PaginatedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  limit: number;
-  hasMore: boolean;
+// Kanban column types (UI only)
+export interface KanbanColumn {
+  id: string;
+  title: string;
+  status: ItemStatus;
+  color: string;
 }

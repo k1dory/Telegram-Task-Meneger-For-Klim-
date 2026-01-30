@@ -3,22 +3,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTasksStore, useAppStore } from '@/store';
 import { Card, Button, Input, Checkbox, Progress, Badge } from '@/components/ui';
 import { cn, priorityColors, priorityLabels, formatRelativeDate, calculateProgress } from '@/utils';
-import type { Task, TaskStatus } from '@/types';
+import type { Item, ItemStatus, ItemPriority, Subtask } from '@/types';
 
 interface ChecklistBoardProps {
-  folderId: string;
+  boardId: string;
 }
 
-const ChecklistBoard = ({ folderId }: ChecklistBoardProps) => {
-  const { tasks, fetchTasks, updateTaskStatus, toggleSubtask, addSubtask, isLoading } = useTasksStore();
+const ChecklistBoard = ({ boardId }: ChecklistBoardProps) => {
+  const { tasks, fetchTasks, updateTask, completeTask, isLoading } = useTasksStore();
   const { openModal } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [newSubtask, setNewSubtask] = useState<{ [taskId: string]: string }>({});
   const [showCompleted, setShowCompleted] = useState(true);
 
   useEffect(() => {
-    fetchTasks({ folderId });
-  }, [folderId, fetchTasks]);
+    fetchTasks(boardId);
+  }, [boardId, fetchTasks]);
 
   const filteredTasks = tasks.filter((task) => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -29,25 +29,43 @@ const ChecklistBoard = ({ folderId }: ChecklistBoardProps) => {
   const incompleteTasks = filteredTasks.filter((t) => t.status !== 'completed');
   const completedTasks = filteredTasks.filter((t) => t.status === 'completed');
 
-  const handleTaskToggle = (task: Task) => {
-    const newStatus: TaskStatus = task.status === 'completed' ? 'pending' : 'completed';
-    updateTaskStatus(task.id, newStatus);
+  const handleTaskToggle = async (task: Item) => {
+    const isCompleting = task.status !== 'completed';
+    await completeTask(task.id, isCompleting);
   };
 
-  const handleAddSubtask = (taskId: string) => {
-    const title = newSubtask[taskId]?.trim();
+  const handleSubtaskToggle = async (task: Item, subtaskId: string, completed: boolean) => {
+    const subtasks = (task.metadata?.subtasks as Subtask[] | undefined) || [];
+    const updatedSubtasks = subtasks.map((s) =>
+      s.id === subtaskId ? { ...s, completed } : s
+    );
+    await updateTask(task.id, {
+      metadata: { ...task.metadata, subtasks: updatedSubtasks },
+    });
+  };
+
+  const handleAddSubtask = async (task: Item) => {
+    const title = newSubtask[task.id]?.trim();
     if (title) {
-      addSubtask(taskId, title);
-      setNewSubtask((prev) => ({ ...prev, [taskId]: '' }));
+      const subtasks = (task.metadata?.subtasks as Subtask[] | undefined) || [];
+      const newSubtaskItem: Subtask = {
+        id: Date.now().toString(),
+        title,
+        completed: false,
+      };
+      await updateTask(task.id, {
+        metadata: { ...task.metadata, subtasks: [...subtasks, newSubtaskItem] },
+      });
+      setNewSubtask((prev) => ({ ...prev, [task.id]: '' }));
     }
   };
 
-  const TaskItem = ({ task }: { task: Task }) => {
+  const TaskItem = ({ task }: { task: Item }) => {
     const isCompleted = task.status === 'completed';
-    const subtaskProgress = calculateProgress(
-      task.subtasks.filter((s) => s.completed).length,
-      task.subtasks.length
-    );
+    const priority: ItemPriority = task.metadata?.priority || 'medium';
+    const subtasks = (task.metadata?.subtasks as Subtask[] | undefined) || [];
+    const completedSubtasks = subtasks.filter((s) => s.completed).length;
+    const subtaskProgress = calculateProgress(completedSubtasks, subtasks.length);
 
     return (
       <motion.div
@@ -84,52 +102,52 @@ const ChecklistBoard = ({ folderId }: ChecklistBoardProps) => {
                 </button>
               </div>
 
-              {task.description && (
-                <p className="text-sm text-dark-400 mt-1 line-clamp-2">{task.description}</p>
+              {task.content && (
+                <p className="text-sm text-dark-400 mt-1 line-clamp-2">{task.content}</p>
               )}
 
               {/* Metadata */}
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <Badge
                   variant={
-                    task.priority === 'urgent'
+                    priority === 'urgent'
                       ? 'danger'
-                      : task.priority === 'high'
+                      : priority === 'high'
                       ? 'warning'
                       : 'default'
                   }
                   size="sm"
                 >
-                  {priorityLabels[task.priority]}
+                  {priorityLabels[priority]}
                 </Badge>
 
-                {task.dueDate && (
+                {task.due_date && (
                   <span className="text-xs text-dark-400 flex items-center gap-1">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    {formatRelativeDate(task.dueDate)}
+                    {formatRelativeDate(task.due_date)}
                   </span>
                 )}
               </div>
 
               {/* Subtasks */}
-              {task.subtasks.length > 0 && (
+              {subtasks.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-dark-700">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-dark-400">
-                      Подзадачи ({task.subtasks.filter((s) => s.completed).length}/{task.subtasks.length})
+                      Подзадачи ({completedSubtasks}/{subtasks.length})
                     </span>
                     <span className="text-xs text-dark-400">{subtaskProgress}%</span>
                   </div>
                   <Progress value={subtaskProgress} size="sm" color="primary" />
 
                   <div className="mt-2 space-y-1">
-                    {task.subtasks.map((subtask) => (
+                    {subtasks.map((subtask) => (
                       <div key={subtask.id} className="flex items-center gap-2">
                         <Checkbox
                           checked={subtask.completed}
-                          onChange={() => toggleSubtask(task.id, subtask.id, !subtask.completed)}
+                          onChange={() => handleSubtaskToggle(task, subtask.id, !subtask.completed)}
                         />
                         <span
                           className={cn(
@@ -153,13 +171,13 @@ const ChecklistBoard = ({ folderId }: ChecklistBoardProps) => {
                   onChange={(e) =>
                     setNewSubtask((prev) => ({ ...prev, [task.id]: e.target.value }))
                   }
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddSubtask(task.id)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddSubtask(task)}
                   className="text-sm"
                 />
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => handleAddSubtask(task.id)}
+                  onClick={() => handleAddSubtask(task)}
                   disabled={!newSubtask[task.id]?.trim()}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -195,7 +213,7 @@ const ChecklistBoard = ({ folderId }: ChecklistBoardProps) => {
           >
             {showCompleted ? 'Скрыть выполненные' : 'Показать выполненные'}
           </Button>
-          <Button onClick={() => openModal('createTask', { folderId })}>
+          <Button onClick={() => openModal('createTask', { boardId })}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -246,7 +264,7 @@ const ChecklistBoard = ({ folderId }: ChecklistBoardProps) => {
                 </svg>
               </div>
               <p className="text-dark-400 mb-4">Нет задач</p>
-              <Button onClick={() => openModal('createTask', { folderId })}>
+              <Button onClick={() => openModal('createTask', { boardId })}>
                 Создать задачу
               </Button>
             </div>

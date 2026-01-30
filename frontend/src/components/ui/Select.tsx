@@ -1,4 +1,4 @@
-import { useState, useRef, ReactNode } from 'react';
+import { useState, useRef, useEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/utils';
 import { useClickOutside } from '@/hooks';
@@ -32,9 +32,21 @@ const Select = ({
   fullWidth = true,
 }: SelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const containerRef = useClickOutside<HTMLDivElement>(() => setIsOpen(false), isOpen);
 
   const selectedOption = options.find((opt) => opt.value === value);
+
+  // Determine if dropdown should open upward based on available space
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownHeight = Math.min(options.length * 44 + 8, 248); // ~44px per option + padding, max 248px
+      setOpenUpward(spaceBelow < dropdownHeight && rect.top > dropdownHeight);
+    }
+  }, [isOpen, options.length]);
 
   return (
     <div className={cn('flex flex-col gap-1.5', fullWidth && 'w-full')}>
@@ -43,12 +55,13 @@ const Select = ({
       )}
       <div ref={containerRef} className="relative">
         <button
+          ref={buttonRef}
           type="button"
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
           className={cn(
             'w-full flex items-center justify-between gap-2',
-            'bg-dark-900 border border-dark-700 rounded-xl',
+            'bg-dark-800/70 border border-dark-600/60 rounded-xl',
             'px-4 py-3 text-left',
             'focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500',
             'transition-all duration-200',
@@ -94,14 +107,15 @@ const Select = ({
         <AnimatePresence>
           {isOpen && (
             <motion.div
-              initial={{ opacity: 0, y: -10 }}
+              initial={{ opacity: 0, y: openUpward ? 10 : -10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
+              exit={{ opacity: 0, y: openUpward ? 10 : -10 }}
               transition={{ duration: 0.15 }}
               className={cn(
-                'absolute z-50 w-full mt-2',
-                'bg-dark-800 border border-dark-700 rounded-xl',
-                'shadow-xl shadow-black/20 overflow-hidden'
+                'absolute z-50 w-full',
+                openUpward ? 'bottom-full mb-2' : 'top-full mt-2',
+                'bg-dark-800/95 border border-dark-700/60 rounded-xl',
+                'shadow-xl shadow-black/20 overflow-hidden backdrop-blur-sm'
               )}
             >
               <div className="max-h-60 overflow-y-auto py-1">

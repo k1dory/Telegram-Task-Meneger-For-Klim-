@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -62,7 +63,7 @@ func (s *AuthService) AuthenticateWithTelegram(ctx context.Context, initData str
 		LanguageCode:        telegramUser.LanguageCode,
 		NotificationEnabled: true,
 		ReminderHours:       []int{6, 8, 12},
-		LastActiveAt:        time.Now(),
+		LastActiveAt:        func() *time.Time { t := time.Now(); return &t }(),
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
@@ -74,6 +75,10 @@ func (s *AuthService) AuthenticateWithTelegram(ctx context.Context, initData str
 	if err != nil {
 		return nil, err
 	}
+
+	// Add Telegram-specific data (not stored in DB)
+	user.IsPremium = telegramUser.IsPremium
+	user.PhotoURL = telegramUser.PhotoURL
 
 	// Generate JWT token
 	token, err := s.generateToken(user)
@@ -138,7 +143,7 @@ func (s *AuthService) generateToken(user *domain.User) (string, error) {
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
 			Issuer:    "telegram-task-manager",
-			Subject:   string(rune(user.ID)),
+			Subject:   strconv.FormatInt(user.ID, 10),
 		},
 	}
 

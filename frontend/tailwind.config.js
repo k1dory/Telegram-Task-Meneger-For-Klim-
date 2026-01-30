@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+const withAlpha = (variable) => `rgb(var(${variable}) / <alpha-value>)`;
+
 export default {
   content: [
     "./index.html",
@@ -8,33 +10,33 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: '#f5f3ff',
-          100: '#ede9fe',
-          200: '#ddd6fe',
-          300: '#c4b5fd',
-          400: '#a78bfa',
-          500: '#8b5cf6',
-          600: '#7c3aed',
-          700: '#6d28d9',
-          800: '#5b21b6',
-          900: '#4c1d95',
+          50: withAlpha('--color-primary-50'),
+          100: withAlpha('--color-primary-100'),
+          200: withAlpha('--color-primary-200'),
+          300: withAlpha('--color-primary-300'),
+          400: withAlpha('--color-primary-400'),
+          500: withAlpha('--color-primary-500'),
+          600: withAlpha('--color-primary-600'),
+          700: withAlpha('--color-primary-700'),
+          800: withAlpha('--color-primary-800'),
+          900: withAlpha('--color-primary-900'),
         },
         dark: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          900: '#0f172a',
-          950: '#020617',
+          50: withAlpha('--color-dark-50'),
+          100: withAlpha('--color-dark-100'),
+          200: withAlpha('--color-dark-200'),
+          300: withAlpha('--color-dark-300'),
+          400: withAlpha('--color-dark-400'),
+          500: withAlpha('--color-dark-500'),
+          600: withAlpha('--color-dark-600'),
+          700: withAlpha('--color-dark-700'),
+          800: withAlpha('--color-dark-800'),
+          900: withAlpha('--color-dark-900'),
+          950: withAlpha('--color-dark-950'),
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: ['Manrope', 'system-ui', '-apple-system', 'sans-serif'],
       },
       animation: {
         'fade-in': 'fadeIn 0.2s ease-in-out',

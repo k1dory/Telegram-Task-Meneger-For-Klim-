@@ -1,26 +1,22 @@
 import { create } from 'zustand';
-import type { Note } from '@/types';
-import { notesApi, type CreateNoteDto, type UpdateNoteDto, type NoteFilters } from '@/api';
+import type { Item } from '@/types';
+import { itemsApi } from '@/api';
 
 interface NotesState {
-  notes: Note[];
-  currentNote: Note | null;
+  notes: Item[];
+  currentNote: Item | null;
   isLoading: boolean;
   error: string | null;
-  filters: NoteFilters;
-  hasMore: boolean;
-  page: number;
+  currentBoardId: string | null;
 
   // Actions
-  fetchNotes: (filters?: NoteFilters, reset?: boolean) => Promise<void>;
+  fetchNotes: (boardId: string) => Promise<void>;
   fetchNoteById: (id: string) => Promise<void>;
-  createNote: (data: CreateNoteDto) => Promise<Note>;
-  updateNote: (id: string, data: UpdateNoteDto) => Promise<void>;
+  createNote: (boardId: string, data: { title: string; content?: string; metadata?: Record<string, unknown> }) => Promise<Item>;
+  updateNote: (id: string, data: Partial<Item>) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
   togglePin: (id: string) => Promise<void>;
-  duplicateNote: (id: string) => Promise<void>;
-  setCurrentNote: (note: Note | null) => void;
-  setFilters: (filters: NoteFilters) => void;
+  setCurrentNote: (note: Item | null) => void;
   clearError: () => void;
 }
 
@@ -29,33 +25,23 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   currentNote: null,
   isLoading: false,
   error: null,
-  filters: {},
-  hasMore: true,
-  page: 1,
+  currentBoardId: null,
 
-  fetchNotes: async (filters?: NoteFilters, reset = true) => {
-    const currentFilters = filters || get().filters;
-    const page = reset ? 1 : get().page;
-
-    set({ isLoading: true, error: null });
+  fetchNotes: async (boardId: string) => {
+    set({ isLoading: true, error: null, currentBoardId: boardId });
 
     try {
-      const response = await notesApi.getAll(currentFilters, page);
-      const sortedNotes = [...response.items].sort((a, b) => {
-        // Pinned notes first
-        if (a.pinned && !b.pinned) return -1;
-        if (!a.pinned && b.pinned) return 1;
-        // Then by updated date
-        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      const notes = await itemsApi.getByBoard(boardId);
+      // Sort: pinned first, then by updated_at
+      const sortedNotes = [...notes].sort((a, b) => {
+        const aPinned = a.metadata?.pinned ?? false;
+        const bPinned = b.metadata?.pinned ?? false;
+        if (aPinned && !bPinned) return -1;
+        if (!aPinned && bPinned) return 1;
+        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
       });
 
-      set((state) => ({
-        notes: reset ? sortedNotes : [...state.notes, ...sortedNotes],
-        hasMore: response.hasMore,
-        page: page + 1,
-        filters: currentFilters,
-        isLoading: false,
-      }));
+      set({ notes: sortedNotes, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch notes',
@@ -67,8 +53,8 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   fetchNoteById: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await notesApi.getById(id);
-      set({ currentNote: response, isLoading: false });
+      const note = await itemsApi.getById(id);
+      set({ currentNote: note, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch note',
@@ -77,10 +63,13 @@ export const useNotesStore = create<NotesState>((set, get) => ({
     }
   },
 
-  createNote: async (data: CreateNoteDto) => {
+  createNote: async (boardId, data) => {
     set({ error: null });
     try {
-      const newNote = await notesApi.create(data);
+      const newNote = await itemsApi.create(boardId, {
+        ...data,
+        status: 'pending', // Notes don't use status but API requires it
+      });
       set((state) => ({
         notes: [newNote, ...state.notes],
       }));
@@ -93,10 +82,10 @@ export const useNotesStore = create<NotesState>((set, get) => ({
     }
   },
 
-  updateNote: async (id: string, data: UpdateNoteDto) => {
+  updateNote: async (id: string, data) => {
     set({ error: null });
     try {
-      const updatedNote = await notesApi.update(id, data);
+      const updatedNote = await itemsApi.update(id, data);
       set((state) => ({
         notes: state.notes.map((n) => (n.id === id ? updatedNote : n)),
         currentNote: state.currentNote?.id === id ? updatedNote : state.currentNote,
@@ -112,7 +101,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   deleteNote: async (id: string) => {
     set({ error: null });
     try {
-      await notesApi.delete(id);
+      await itemsApi.delete(id);
       set((state) => ({
         notes: state.notes.filter((n) => n.id !== id),
         currentNote: state.currentNote?.id === id ? null : state.currentNote,
@@ -129,15 +118,19 @@ export const useNotesStore = create<NotesState>((set, get) => ({
     const note = get().notes.find((n) => n.id === id);
     if (!note) return;
 
+    const newPinned = !note.metadata?.pinned;
+
     // Optimistic update
     set((state) => ({
       notes: state.notes.map((n) =>
-        n.id === id ? { ...n, pinned: !n.pinned } : n
+        n.id === id ? { ...n, metadata: { ...n.metadata, pinned: newPinned } } : n
       ),
     }));
 
     try {
-      await notesApi.togglePin(id);
+      await itemsApi.update(id, {
+        metadata: { ...note.metadata, pinned: newPinned }
+      });
     } catch (error) {
       // Revert on error
       set((state) => ({
@@ -147,23 +140,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
     }
   },
 
-  duplicateNote: async (id: string) => {
-    set({ error: null });
-    try {
-      const duplicatedNote = await notesApi.duplicate(id);
-      set((state) => ({
-        notes: [duplicatedNote, ...state.notes],
-      }));
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : 'Failed to duplicate note',
-      });
-    }
-  },
-
   setCurrentNote: (note) => set({ currentNote: note }),
-
-  setFilters: (filters) => set({ filters }),
 
   clearError: () => set({ error: null }),
 }));

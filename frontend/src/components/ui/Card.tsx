@@ -21,10 +21,10 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
     ref
   ) => {
     const variants = {
-      default: 'bg-dark-800',
-      elevated: 'bg-dark-800 shadow-xl shadow-black/20',
-      bordered: 'bg-dark-800/50 border border-dark-700',
-      gradient: 'bg-gradient-to-br from-dark-800 to-dark-900 border border-dark-700/50',
+      default: 'bg-dark-800/70 border border-dark-700/40',
+      elevated: 'bg-dark-800/70 shadow-xl shadow-black/20 border border-dark-700/30',
+      bordered: 'bg-dark-800/55 border border-dark-600/40 backdrop-blur-sm',
+      gradient: 'bg-gradient-to-br from-dark-800/80 to-dark-900/80 border border-dark-700/50',
     };
 
     const paddings = {

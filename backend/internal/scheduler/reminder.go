@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/robfig/cron/v3"
+	"github.com/telegram-task-manager/backend/internal/domain"
 	"github.com/telegram-task-manager/backend/internal/repository"
 	"github.com/telegram-task-manager/backend/internal/service"
 )
@@ -193,27 +194,27 @@ func (s *ReminderScheduler) checkOverdueTasks() {
 		})
 	}
 
-	// Send one notification per user with all their overdue tasks
-	for userID, tasks := range userTasks {
-		// Convert to domain.OverdueTask slice
-		domainTasks := make([]struct {
-			Title     string
-			BoardName string
-			ItemID    string
-		}, len(tasks))
+	// Send one notification per user with ONLY their overdue tasks
+	for userID := range userTasks {
+		// Filter overdue tasks to get only this user's tasks
+		var userOverdueTasks []domain.OverdueTask
+		for _, task := range overdueTasks {
+			if task.UserID == userID {
+				userOverdueTasks = append(userOverdueTasks, task)
+			}
+		}
 
-		for i, t := range tasks {
-			domainTasks[i].Title = t.Title
-			domainTasks[i].BoardName = t.BoardName
+		if len(userOverdueTasks) == 0 {
+			continue
 		}
 
 		s.logger.Info("sending overdue notification",
 			"user_id", userID,
-			"task_count", len(tasks),
+			"task_count", len(userOverdueTasks),
 		)
 
-		// Send notification via the notification service
-		if err := s.notificationSvc.SendOverdueTasksNotification(ctx, userID, overdueTasks); err != nil {
+		// Send notification via the notification service with only this user's tasks
+		if err := s.notificationSvc.SendOverdueTasksNotification(ctx, userID, userOverdueTasks); err != nil {
 			s.logger.Error("failed to send overdue tasks notification",
 				"user_id", userID,
 				"error", err,

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
@@ -12,17 +12,17 @@ import { cn, statusColors, formatDuration } from '@/utils';
 const Home = () => {
   const { user } = useAppStore();
   const { folders, fetchFolders } = useFoldersStore();
-  const { tasks, fetchTasks } = useTasksStore();
+  const { tasks } = useTasksStore();
 
   useEffect(() => {
     fetchFolders();
-    fetchTasks();
-  }, [fetchFolders, fetchTasks]);
+    // Tasks are loaded per-board, not globally. Home shows folder overview.
+  }, [fetchFolders]);
 
   const todayTasks = tasks.filter((t) => {
-    if (!t.dueDate) return false;
+    if (!t.due_date) return false;
     const today = new Date().toDateString();
-    return new Date(t.dueDate).toDateString() === today;
+    return new Date(t.due_date).toDateString() === today;
   });
 
   const completedToday = todayTasks.filter((t) => t.status === 'completed').length;
@@ -33,17 +33,29 @@ const Home = () => {
   const completedTasks = tasks.filter((t) => t.status === 'completed').length;
   const inProgressTasks = tasks.filter((t) => t.status === 'in_progress').length;
 
-  // Mock data for chart
-  const chartData = Array.from({ length: 7 }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (6 - i));
-    return {
-      date: format(date, 'yyyy-MM-dd'),
-      completed: Math.floor(Math.random() * 10),
-      created: Math.floor(Math.random() * 8),
-      timeSpent: Math.floor(Math.random() * 120),
-    };
-  });
+  // Generate real chart data from tasks (last 7 days)
+  const chartData = useMemo(() => {
+    const result = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = format(date, 'yyyy-MM-dd');
+
+      // Count tasks completed on this day
+      const completed = tasks.filter((t) => {
+        if (!t.completed_at) return false;
+        return format(new Date(t.completed_at), 'yyyy-MM-dd') === dateStr;
+      }).length;
+
+      // Count tasks created on this day
+      const created = tasks.filter((t) => {
+        return format(new Date(t.created_at), 'yyyy-MM-dd') === dateStr;
+      }).length;
+
+      result.push({ date: dateStr, completed, created });
+    }
+    return result;
+  }, [tasks]);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -61,7 +73,7 @@ const Home = () => {
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6">
       <PageHeader
-        title={`Привет, ${user?.firstName || 'User'}`}
+        title={`Привет, ${user?.first_name || 'User'}`}
         subtitle={format(new Date(), "EEEE, d MMMM", { locale: ru })}
       />
 
@@ -108,25 +120,27 @@ const Home = () => {
         </Card>
       </motion.div>
 
-      {/* Activity Chart */}
-      <motion.div variants={itemVariants}>
-        <Card variant="bordered">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-dark-100">Активность</h3>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
-                <span className="text-xs text-dark-400">Выполнено</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-primary-500" />
-                <span className="text-xs text-dark-400">Создано</span>
+      {/* Activity Chart - only show if there's any activity */}
+      {chartData.some((d) => d.completed > 0 || d.created > 0) && (
+        <motion.div variants={itemVariants}>
+          <Card variant="bordered">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-dark-100">Активность</h3>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                  <span className="text-xs text-dark-400">Выполнено</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-primary-500" />
+                  <span className="text-xs text-dark-400">Создано</span>
+                </div>
               </div>
             </div>
-          </div>
-          <TasksChart data={chartData} height={180} />
-        </Card>
-      </motion.div>
+            <TasksChart data={chartData} height={180} />
+          </Card>
+        </motion.div>
+      )}
 
       {/* Today's Tasks */}
       {todayTasks.length > 0 && (

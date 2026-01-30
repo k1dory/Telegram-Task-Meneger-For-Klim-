@@ -114,11 +114,11 @@ const Sidebar = () => {
           <div className="p-4 border-t border-dark-700">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white font-semibold">
-                {user.firstName.charAt(0)}
+                {user.first_name?.charAt(0) || '?'}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-dark-100 truncate">
-                  {user.firstName} {user.lastName}
+                  {user.first_name} {user.last_name}
                 </p>
                 <p className="text-xs text-dark-400 truncate">
                   @{user.username || 'user'}

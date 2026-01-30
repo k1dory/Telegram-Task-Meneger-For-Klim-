@@ -1,42 +1,30 @@
 import { create } from 'zustand';
-import type { Task, TaskStatus, TaskPriority, Subtask } from '@/types';
-import { tasksApi, type CreateTaskDto, type UpdateTaskDto, type TaskFilters } from '@/api';
+import type { Item, ItemStatus } from '@/types';
+import { itemsApi } from '@/api';
 
 interface TasksState {
-  tasks: Task[];
-  currentTask: Task | null;
+  tasks: Item[];
+  currentTask: Item | null;
   isLoading: boolean;
   error: string | null;
-  filters: TaskFilters;
-  hasMore: boolean;
-  page: number;
+  currentBoardId: string | null;
 
   // Active timer
   activeTimerTaskId: string | null;
   timerStartTime: number | null;
 
   // Actions
-  fetchTasks: (filters?: TaskFilters, reset?: boolean) => Promise<void>;
+  fetchTasks: (boardId: string) => Promise<void>;
   fetchTaskById: (id: string) => Promise<void>;
-  createTask: (data: CreateTaskDto) => Promise<Task>;
-  updateTask: (id: string, data: UpdateTaskDto) => Promise<void>;
+  createTask: (boardId: string, data: { title: string; content?: string; status?: ItemStatus; due_date?: string; metadata?: Record<string, unknown> }) => Promise<Item>;
+  updateTask: (id: string, data: Partial<Item>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
-  updateTaskStatus: (id: string, status: TaskStatus) => Promise<void>;
-  setCurrentTask: (task: Task | null) => void;
-  setFilters: (filters: TaskFilters) => void;
-
-  // Subtasks
-  addSubtask: (taskId: string, title: string) => Promise<void>;
-  toggleSubtask: (taskId: string, subtaskId: string, completed: boolean) => Promise<void>;
-  deleteSubtask: (taskId: string, subtaskId: string) => Promise<void>;
+  completeTask: (id: string, completed: boolean) => Promise<void>;
+  setCurrentTask: (task: Item | null) => void;
 
   // Timer
   startTimer: (taskId: string) => void;
   stopTimer: () => Promise<void>;
-
-  // Bulk actions
-  bulkUpdateStatus: (taskIds: string[], status: TaskStatus) => Promise<void>;
-  bulkDelete: (taskIds: string[]) => Promise<void>;
 
   clearError: () => void;
 }
@@ -46,27 +34,16 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   currentTask: null,
   isLoading: false,
   error: null,
-  filters: {},
-  hasMore: true,
-  page: 1,
+  currentBoardId: null,
   activeTimerTaskId: null,
   timerStartTime: null,
 
-  fetchTasks: async (filters?: TaskFilters, reset = true) => {
-    const currentFilters = filters || get().filters;
-    const page = reset ? 1 : get().page;
-
-    set({ isLoading: true, error: null });
+  fetchTasks: async (boardId: string) => {
+    set({ isLoading: true, error: null, currentBoardId: boardId });
 
     try {
-      const response = await tasksApi.getAll(currentFilters, page);
-      set((state) => ({
-        tasks: reset ? response.items : [...state.tasks, ...response.items],
-        hasMore: response.hasMore,
-        page: page + 1,
-        filters: currentFilters,
-        isLoading: false,
-      }));
+      const tasks = await itemsApi.getByBoard(boardId);
+      set({ tasks, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch tasks',
@@ -78,8 +55,8 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   fetchTaskById: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await tasksApi.getById(id);
-      set({ currentTask: response, isLoading: false });
+      const task = await itemsApi.getById(id);
+      set({ currentTask: task, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch task',
@@ -88,10 +65,10 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     }
   },
 
-  createTask: async (data: CreateTaskDto) => {
+  createTask: async (boardId, data) => {
     set({ error: null });
     try {
-      const newTask = await tasksApi.create(data);
+      const newTask = await itemsApi.create(boardId, data);
       set((state) => ({
         tasks: [newTask, ...state.tasks],
       }));
@@ -104,10 +81,10 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     }
   },
 
-  updateTask: async (id: string, data: UpdateTaskDto) => {
+  updateTask: async (id: string, data) => {
     set({ error: null });
     try {
-      const updatedTask = await tasksApi.update(id, data);
+      const updatedTask = await itemsApi.update(id, data);
       set((state) => ({
         tasks: state.tasks.map((t) => (t.id === id ? updatedTask : t)),
         currentTask: state.currentTask?.id === id ? updatedTask : state.currentTask,
@@ -123,7 +100,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   deleteTask: async (id: string) => {
     set({ error: null });
     try {
-      await tasksApi.delete(id);
+      await itemsApi.delete(id);
       set((state) => ({
         tasks: state.tasks.filter((t) => t.id !== id),
         currentTask: state.currentTask?.id === id ? null : state.currentTask,
@@ -136,7 +113,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     }
   },
 
-  updateTaskStatus: async (id: string, status: TaskStatus) => {
+  completeTask: async (id: string, completed: boolean) => {
     const { tasks } = get();
     const task = tasks.find((t) => t.id === id);
     if (!task) return;
@@ -147,15 +124,16 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         t.id === id
           ? {
               ...t,
-              status,
-              completedAt: status === 'completed' ? new Date().toISOString() : undefined,
+              status: completed ? 'completed' : 'pending',
+              completed_at: completed ? new Date().toISOString() : undefined,
             }
           : t
       ),
     }));
 
     try {
-      await tasksApi.updateStatus(id, status);
+      // Use the complete endpoint so backend sets completed_at properly
+      await itemsApi.complete(id, completed);
     } catch (error) {
       // Revert on error
       set((state) => ({
@@ -166,69 +144,6 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   },
 
   setCurrentTask: (task) => set({ currentTask: task }),
-
-  setFilters: (filters) => set({ filters }),
-
-  addSubtask: async (taskId: string, title: string) => {
-    try {
-      const newSubtask = await tasksApi.addSubtask(taskId, title);
-      set((state) => ({
-        tasks: state.tasks.map((t) =>
-          t.id === taskId ? { ...t, subtasks: [...t.subtasks, newSubtask] } : t
-        ),
-        currentTask:
-          state.currentTask?.id === taskId
-            ? { ...state.currentTask, subtasks: [...state.currentTask.subtasks, newSubtask] }
-            : state.currentTask,
-      }));
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : 'Failed to add subtask',
-      });
-    }
-  },
-
-  toggleSubtask: async (taskId: string, subtaskId: string, completed: boolean) => {
-    // Optimistic update
-    set((state) => ({
-      tasks: state.tasks.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              subtasks: t.subtasks.map((s) =>
-                s.id === subtaskId ? { ...s, completed } : s
-              ),
-            }
-          : t
-      ),
-    }));
-
-    try {
-      await tasksApi.updateSubtask(taskId, subtaskId, completed);
-    } catch (error) {
-      // Revert would be handled here
-      set({
-        error: error instanceof Error ? error.message : 'Failed to update subtask',
-      });
-    }
-  },
-
-  deleteSubtask: async (taskId: string, subtaskId: string) => {
-    try {
-      await tasksApi.deleteSubtask(taskId, subtaskId);
-      set((state) => ({
-        tasks: state.tasks.map((t) =>
-          t.id === taskId
-            ? { ...t, subtasks: t.subtasks.filter((s) => s.id !== subtaskId) }
-            : t
-        ),
-      }));
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : 'Failed to delete subtask',
-      });
-    }
-  },
 
   startTimer: (taskId: string) => {
     set({
@@ -241,14 +156,17 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     const { activeTimerTaskId, timerStartTime, tasks } = get();
     if (!activeTimerTaskId || !timerStartTime) return;
 
-    const elapsed = Math.floor((Date.now() - timerStartTime) / 60000); // minutes
+    const elapsed = Math.floor((Date.now() - timerStartTime) / 1000); // seconds
     const task = tasks.find((t) => t.id === activeTimerTaskId);
 
     if (task) {
+      const currentSpent = (task.metadata?.time_spent as number) || 0;
+      const newTimeSpent = currentSpent + elapsed;
+
       set((state) => ({
         tasks: state.tasks.map((t) =>
           t.id === activeTimerTaskId
-            ? { ...t, timeSpent: t.timeSpent + elapsed }
+            ? { ...t, metadata: { ...t.metadata, time_spent: newTimeSpent, timer_started: undefined } }
             : t
         ),
         activeTimerTaskId: null,
@@ -256,38 +174,12 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       }));
 
       try {
-        await tasksApi.stopTimer(activeTimerTaskId);
+        await itemsApi.update(activeTimerTaskId, {
+          metadata: { ...task.metadata, time_spent: newTimeSpent, timer_started: null }
+        });
       } catch (error) {
         console.error('Failed to sync timer with server:', error);
       }
-    }
-  },
-
-  bulkUpdateStatus: async (taskIds: string[], status: TaskStatus) => {
-    try {
-      await tasksApi.bulkUpdate(taskIds, { status });
-      set((state) => ({
-        tasks: state.tasks.map((t) =>
-          taskIds.includes(t.id) ? { ...t, status } : t
-        ),
-      }));
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : 'Failed to update tasks',
-      });
-    }
-  },
-
-  bulkDelete: async (taskIds: string[]) => {
-    try {
-      await tasksApi.bulkDelete(taskIds);
-      set((state) => ({
-        tasks: state.tasks.filter((t) => !taskIds.includes(t.id)),
-      }));
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : 'Failed to delete tasks',
-      });
     }
   },
 

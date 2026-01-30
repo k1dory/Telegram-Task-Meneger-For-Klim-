@@ -1,4 +1,5 @@
 export { default as apiClient } from './client';
+export { default as authApi } from './auth';
 export { default as foldersApi } from './folders';
 export { default as boardsApi } from './boards';
 export { default as itemsApi } from './items';

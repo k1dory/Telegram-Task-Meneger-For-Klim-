@@ -3,85 +3,90 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNotesStore, useAppStore } from '@/store';
 import { Card, Button, Input, Badge } from '@/components/ui';
 import { cn, formatRelativeDate } from '@/utils';
-import type { Note } from '@/types';
+import type { Item } from '@/types';
 
 interface NotesBoardProps {
-  folderId: string;
+  boardId: string;
 }
 
-const NotesBoard = ({ folderId }: NotesBoardProps) => {
-  const { notes, fetchNotes, isLoading, togglePin, deleteNote } = useNotesStore();
+const NotesBoard = ({ boardId }: NotesBoardProps) => {
+  const { notes, fetchNotes, isLoading, togglePin } = useNotesStore();
   const { openModal } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  const [selectedNote, setSelectedNote] = useState<Item | null>(null);
 
   useEffect(() => {
-    fetchNotes({ folderId });
-  }, [folderId, fetchNotes]);
+    fetchNotes(boardId);
+  }, [boardId, fetchNotes]);
 
   const filteredNotes = notes.filter(
     (note) =>
       note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      note.content.toLowerCase().includes(searchQuery.toLowerCase())
+      (note.content || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const pinnedNotes = filteredNotes.filter((n) => n.pinned);
-  const otherNotes = filteredNotes.filter((n) => !n.pinned);
+  const pinnedNotes = filteredNotes.filter((n) => n.metadata?.pinned);
+  const otherNotes = filteredNotes.filter((n) => !n.metadata?.pinned);
 
-  const handleNoteClick = (note: Note) => {
+  const handleNoteClick = (note: Item) => {
     setSelectedNote(note);
     openModal('editNote', note);
   };
 
-  const NoteCard = ({ note }: { note: Note }) => (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={() => handleNoteClick(note)}
-      className="cursor-pointer"
-    >
-      <Card
-        variant="bordered"
-        className="h-full"
-        style={{ borderLeftColor: note.color, borderLeftWidth: 3 }}
+  const NoteCard = ({ note }: { note: Item }) => {
+    const color = note.metadata?.color || '#6366f1';
+    const tags = note.metadata?.tags || [];
+
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => handleNoteClick(note)}
+        className="cursor-pointer"
       >
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <h3 className="font-medium text-dark-100 line-clamp-1">{note.title}</h3>
-          {note.pinned && (
-            <svg
-              className="w-4 h-4 text-primary-400 flex-shrink-0"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
-            </svg>
-          )}
-        </div>
-
-        <p className="text-sm text-dark-400 line-clamp-3 mb-3">{note.content}</p>
-
-        <div className="flex items-center justify-between">
-          <div className="flex flex-wrap gap-1">
-            {note.tags.slice(0, 2).map((tag) => (
-              <Badge key={tag} variant="default" size="sm">
-                {tag}
-              </Badge>
-            ))}
-            {note.tags.length > 2 && (
-              <Badge variant="default" size="sm">
-                +{note.tags.length - 2}
-              </Badge>
+        <Card
+          variant="bordered"
+          className="h-full"
+          style={{ borderLeftColor: color, borderLeftWidth: 3 }}
+        >
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <h3 className="font-medium text-dark-100 line-clamp-1">{note.title}</h3>
+            {note.metadata?.pinned && (
+              <svg
+                className="w-4 h-4 text-primary-400 flex-shrink-0"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+              </svg>
             )}
           </div>
-          <span className="text-xs text-dark-500">{formatRelativeDate(note.updatedAt)}</span>
-        </div>
-      </Card>
-    </motion.div>
-  );
+
+          <p className="text-sm text-dark-400 line-clamp-3 mb-3">{note.content || ''}</p>
+
+          <div className="flex items-center justify-between">
+            <div className="flex flex-wrap gap-1">
+              {tags.slice(0, 2).map((tag) => (
+                <Badge key={tag} variant="default" size="sm">
+                  {tag}
+                </Badge>
+              ))}
+              {tags.length > 2 && (
+                <Badge variant="default" size="sm">
+                  +{tags.length - 2}
+                </Badge>
+              )}
+            </div>
+            <span className="text-xs text-dark-500">{formatRelativeDate(note.updated_at)}</span>
+          </div>
+        </Card>
+      </motion.div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -102,7 +107,7 @@ const NotesBoard = ({ folderId }: NotesBoardProps) => {
             </svg>
           }
         />
-        <Button onClick={() => openModal('createNote', { folderId })}>
+        <Button onClick={() => openModal('createNote', { boardId })}>
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
@@ -174,7 +179,7 @@ const NotesBoard = ({ folderId }: NotesBoardProps) => {
                 {searchQuery ? 'Заметки не найдены' : 'Нет заметок'}
               </p>
               {!searchQuery && (
-                <Button onClick={() => openModal('createNote', { folderId })}>
+                <Button onClick={() => openModal('createNote', { boardId })}>
                   Создать заметку
                 </Button>
               )}

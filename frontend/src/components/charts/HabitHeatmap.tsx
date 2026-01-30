@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { format, eachDayOfInterval, subDays, startOfWeek, getDay } from 'date-fns';
+import { format, eachDayOfInterval, subDays, startOfWeek } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { cn } from '@/utils';
 import type { HabitCompletion } from '@/types';
@@ -19,7 +19,8 @@ const HabitHeatmap = ({ completions, weeks = 12, color = '#8b5cf6' }: HabitHeatm
 
   const completionMap = useMemo(() => {
     const map = new Map<string, boolean>();
-    completions.forEach((c) => map.set(c.date, c.completed));
+    // Each HabitCompletion record represents a completed day
+    completions.forEach((c) => map.set(c.completed_date, true));
     return map;
   }, [completions]);
 
@@ -63,7 +64,6 @@ const HabitHeatmap = ({ completions, weeks = 12, color = '#8b5cf6' }: HabitHeatm
             {week.map((day) => {
               const dateStr = format(day, 'yyyy-MM-dd');
               const isCompleted = completionMap.get(dateStr) || false;
-              const dayOfWeek = getDay(day);
 
               return (
                 <div

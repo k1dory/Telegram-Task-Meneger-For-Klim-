@@ -1,4 +1,4 @@
-import { Fragment, ReactNode } from 'react';
+import { Fragment, ReactNode, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/utils';
 import { useClickOutside } from '@/hooks';
@@ -30,6 +30,39 @@ const Modal = ({
     if (closeOnOverlayClick) onClose();
   }, isOpen);
 
+  const [viewportHeight, setViewportHeight] = useState('100vh');
+
+  // Handle virtual keyboard on mobile
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const updateViewportHeight = () => {
+      // Use visualViewport API if available (better for mobile keyboards)
+      if (window.visualViewport) {
+        setViewportHeight(`${window.visualViewport.height}px`);
+      } else {
+        setViewportHeight(`${window.innerHeight}px`);
+      }
+    };
+
+    updateViewportHeight();
+
+    // Listen to viewport changes (keyboard open/close)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewportHeight);
+      window.visualViewport.addEventListener('scroll', updateViewportHeight);
+    }
+    window.addEventListener('resize', updateViewportHeight);
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateViewportHeight);
+        window.visualViewport.removeEventListener('scroll', updateViewportHeight);
+      }
+      window.removeEventListener('resize', updateViewportHeight);
+    };
+  }, [isOpen]);
+
   const sizes = {
     sm: 'max-w-sm',
     md: 'max-w-md',
@@ -51,7 +84,10 @@ const Modal = ({
           />
 
           {/* Modal Container */}
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div
+            className="fixed inset-x-0 top-0 z-50 flex items-end sm:items-center justify-center p-4 overflow-hidden"
+            style={{ height: viewportHeight }}
+          >
             <motion.div
               ref={modalRef}
               initial={{ opacity: 0, y: 100, scale: 0.95 }}
@@ -60,7 +96,8 @@ const Modal = ({
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               className={cn(
                 'w-full bg-dark-800 rounded-t-3xl sm:rounded-2xl shadow-2xl',
-                'border border-dark-700 overflow-hidden',
+                'border border-dark-700 overflow-hidden flex flex-col',
+                'max-h-[90%]',
                 sizes[size]
               )}
             >
@@ -99,11 +136,11 @@ const Modal = ({
               )}
 
               {/* Content */}
-              <div className="px-6 py-4 max-h-[70vh] overflow-y-auto">{children}</div>
+              <div className="px-6 py-4 flex-1 overflow-y-auto min-h-0">{children}</div>
 
               {/* Footer */}
               {footer && (
-                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-dark-700 bg-dark-900/50">
+                <div className="flex-shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-dark-700 bg-dark-900/50">
                   {footer}
                 </div>
               )}

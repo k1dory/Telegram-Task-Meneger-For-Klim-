@@ -205,6 +205,7 @@ func main() {
 
 				// Habit tracking
 				items.POST("/:id/habit/complete", itemHandler.CompleteHabit)
+				items.DELETE("/:id/habit/complete", itemHandler.UncompleteHabit)
 				items.GET("/:id/habit/completions", itemHandler.GetHabitCompletions)
 			}
 

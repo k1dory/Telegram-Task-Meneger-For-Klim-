@@ -3,31 +3,38 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { format, subDays, eachDayOfInterval, isToday } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useHabitsStore, useAppStore } from '@/store';
-import { Card, Button, Badge, CircularProgress } from '@/components/ui';
-import { HabitHeatmap } from '@/components/charts';
+import { Card, Button, CircularProgress } from '@/components/ui';
 import { cn } from '@/utils';
-import type { Habit } from '@/types';
+import type { Item } from '@/types';
 
 interface HabitTrackerBoardProps {
-  folderId: string;
+  boardId: string;
 }
 
-const HabitTrackerBoard = ({ folderId }: HabitTrackerBoardProps) => {
+const HabitTrackerBoard = ({ boardId }: HabitTrackerBoardProps) => {
   const {
     habits,
+    completions,
     fetchHabits,
+    fetchCompletions,
     markComplete,
-    markIncomplete,
     isCompletedOnDate,
-    selectedDate,
-    setSelectedDate,
     isLoading,
   } = useHabitsStore();
   const { openModal } = useAppStore();
 
   useEffect(() => {
-    fetchHabits({ folderId });
-  }, [folderId, fetchHabits]);
+    fetchHabits(boardId);
+  }, [boardId, fetchHabits]);
+
+  // Fetch completions for all habits
+  useEffect(() => {
+    habits.forEach((habit) => {
+      if (!completions[habit.id]) {
+        fetchCompletions(habit.id);
+      }
+    });
+  }, [habits, completions, fetchCompletions]);
 
   // Get last 7 days
   const last7Days = eachDayOfInterval({
@@ -35,21 +42,26 @@ const HabitTrackerBoard = ({ folderId }: HabitTrackerBoardProps) => {
     end: new Date(),
   });
 
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
   const todayCompletedCount = habits.filter((h) =>
-    isCompletedOnDate(h.id, format(new Date(), 'yyyy-MM-dd'))
+    isCompletedOnDate(h.id, todayStr)
   ).length;
   const todayProgress = habits.length > 0 ? (todayCompletedCount / habits.length) * 100 : 0;
 
-  const HabitCard = ({ habit }: { habit: Habit }) => {
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const HabitCard = ({ habit }: { habit: Item }) => {
     const isCompletedToday = isCompletedOnDate(habit.id, todayStr);
+    const color = habit.metadata?.color || '#6366f1';
+    const icon = habit.metadata?.icon || '📌';
+    const streak = habit.metadata?.streak || 0;
+    const longestStreak = habit.metadata?.longest_streak || 0;
 
     const handleToggle = () => {
-      if (isCompletedToday) {
-        markIncomplete(habit.id, todayStr);
-      } else {
-        markComplete(habit.id, todayStr);
-      }
+      // Toggle completion - markComplete handles both mark and unmark
+      markComplete(habit.id, todayStr);
+    };
+
+    const handleDayToggle = (dateStr: string) => {
+      markComplete(habit.id, dateStr);
     };
 
     return (
@@ -71,14 +83,14 @@ const HabitTrackerBoard = ({ folderId }: HabitTrackerBoardProps) => {
                   ? 'bg-green-500'
                   : 'bg-dark-700 hover:bg-dark-600'
               )}
-              style={!isCompletedToday ? { borderColor: habit.color, borderWidth: 2 } : {}}
+              style={!isCompletedToday ? { borderColor: color, borderWidth: 2 } : {}}
             >
               {isCompletedToday ? (
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                 </svg>
               ) : (
-                <span className="text-xl">{habit.icon || '📌'}</span>
+                <span className="text-xl">{icon}</span>
               )}
             </motion.button>
 
@@ -86,9 +98,9 @@ const HabitTrackerBoard = ({ folderId }: HabitTrackerBoardProps) => {
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h3 className="font-medium text-dark-100">{habit.name}</h3>
-                  {habit.description && (
-                    <p className="text-sm text-dark-400 mt-0.5">{habit.description}</p>
+                  <h3 className="font-medium text-dark-100">{habit.title}</h3>
+                  {habit.content && (
+                    <p className="text-sm text-dark-400 mt-0.5">{habit.content}</p>
                   )}
                 </div>
                 <button
@@ -107,14 +119,14 @@ const HabitTrackerBoard = ({ folderId }: HabitTrackerBoardProps) => {
                   <svg className="w-4 h-4 text-orange-400" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-sm font-medium text-orange-400">{habit.streak}</span>
+                  <span className="text-sm font-medium text-orange-400">{streak}</span>
                   <span className="text-xs text-dark-400">дней подряд</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <svg className="w-4 h-4 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
                   </svg>
-                  <span className="text-sm font-medium text-primary-400">{habit.longestStreak}</span>
+                  <span className="text-sm font-medium text-primary-400">{longestStreak}</span>
                   <span className="text-xs text-dark-400">рекорд</span>
                 </div>
               </div>
@@ -129,13 +141,7 @@ const HabitTrackerBoard = ({ folderId }: HabitTrackerBoardProps) => {
                   return (
                     <button
                       key={dateStr}
-                      onClick={() => {
-                        if (completed) {
-                          markIncomplete(habit.id, dateStr);
-                        } else {
-                          markComplete(habit.id, dateStr);
-                        }
-                      }}
+                      onClick={() => handleDayToggle(dateStr)}
                       className={cn(
                         'w-8 h-8 rounded-lg flex flex-col items-center justify-center transition-all',
                         completed ? 'bg-green-500' : 'bg-dark-700 hover:bg-dark-600',
@@ -172,6 +178,11 @@ const HabitTrackerBoard = ({ folderId }: HabitTrackerBoardProps) => {
     );
   }
 
+  // Calculate max streak across all habits
+  const maxStreak = habits.length > 0
+    ? Math.max(...habits.map((h) => h.metadata?.streak || 0), 0)
+    : 0;
+
   return (
     <div className="space-y-6">
       {/* Today Overview */}
@@ -204,15 +215,11 @@ const HabitTrackerBoard = ({ folderId }: HabitTrackerBoardProps) => {
             <p className="text-xs text-dark-400">Привычек</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-orange-400">
-              {Math.max(...habits.map((h) => h.streak), 0)}
-            </p>
+            <p className="text-2xl font-bold text-orange-400">{maxStreak}</p>
             <p className="text-xs text-dark-400">Макс. серия</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-green-400">
-              {habits.filter((h) => isCompletedOnDate(h.id, format(new Date(), 'yyyy-MM-dd'))).length}
-            </p>
+            <p className="text-2xl font-bold text-green-400">{todayCompletedCount}</p>
             <p className="text-xs text-dark-400">Сегодня</p>
           </div>
         </div>
@@ -222,7 +229,7 @@ const HabitTrackerBoard = ({ folderId }: HabitTrackerBoardProps) => {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-medium text-dark-200">Привычки</h3>
-          <Button size="sm" onClick={() => openModal('createHabit', { folderId })}>
+          <Button size="sm" onClick={() => openModal('createHabit', { boardId })}>
             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -246,20 +253,12 @@ const HabitTrackerBoard = ({ folderId }: HabitTrackerBoardProps) => {
               </svg>
             </div>
             <p className="text-dark-400 mb-4">Нет привычек</p>
-            <Button onClick={() => openModal('createHabit', { folderId })}>
+            <Button onClick={() => openModal('createHabit', { boardId })}>
               Создать привычку
             </Button>
           </div>
         )}
       </div>
-
-      {/* Heatmap for first habit */}
-      {habits.length > 0 && (
-        <Card variant="bordered">
-          <h3 className="font-medium text-dark-200 mb-4">История: {habits[0].name}</h3>
-          <HabitHeatmap completions={habits[0].completions} color={habits[0].color} weeks={12} />
-        </Card>
-      )}
     </div>
   );
 };

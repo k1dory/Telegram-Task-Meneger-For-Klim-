@@ -8,31 +8,29 @@ import {
   isSameMonth,
   isSameDay,
   isToday,
-  addMonths,
-  subMonths,
   startOfWeek,
   endOfWeek,
   parseISO,
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useCalendarStore, useAppStore } from '@/store';
-import { Card, Button, Badge } from '@/components/ui';
+import { Card, Button } from '@/components/ui';
 import { cn } from '@/utils';
-import type { CalendarEvent } from '@/types';
+import type { Item } from '@/types';
 
 interface CalendarBoardProps {
-  folderId: string;
+  boardId: string;
 }
 
-const CalendarBoard = ({ folderId }: CalendarBoardProps) => {
+const CalendarBoard = ({ boardId }: CalendarBoardProps) => {
   const { events, fetchEvents, currentMonth, setCurrentMonth, nextMonth, prevMonth, isLoading } =
     useCalendarStore();
   const { openModal } = useAppStore();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   useEffect(() => {
-    fetchEvents(folderId);
-  }, [folderId, fetchEvents, currentMonth]);
+    fetchEvents(boardId);
+  }, [boardId, fetchEvents, currentMonth]);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -43,9 +41,11 @@ const CalendarBoard = ({ folderId }: CalendarBoardProps) => {
   const weekDays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
   const eventsByDate = useMemo(() => {
-    const map = new Map<string, CalendarEvent[]>();
+    const map = new Map<string, Item[]>();
     events.forEach((event) => {
-      const dateStr = format(parseISO(event.startDate), 'yyyy-MM-dd');
+      const startDate = event.metadata?.start_date || event.due_date;
+      if (!startDate) return;
+      const dateStr = format(parseISO(startDate), 'yyyy-MM-dd');
       const existing = map.get(dateStr) || [];
       map.set(dateStr, [...existing, event]);
     });
@@ -93,7 +93,7 @@ const CalendarBoard = ({ folderId }: CalendarBoardProps) => {
               <span
                 key={event.id}
                 className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: event.color }}
+                style={{ backgroundColor: event.metadata?.color || '#6366f1' }}
               />
             ))}
             {dayEvents.length > 3 && (
@@ -104,62 +104,73 @@ const CalendarBoard = ({ folderId }: CalendarBoardProps) => {
 
         {/* Event preview on larger screens */}
         <div className="hidden sm:block w-full mt-1">
-          {dayEvents.slice(0, 2).map((event) => (
-            <div
-              key={event.id}
-              className="text-[10px] truncate px-1 py-0.5 rounded mb-0.5"
-              style={{ backgroundColor: `${event.color}20`, color: event.color }}
-            >
-              {event.title}
-            </div>
-          ))}
+          {dayEvents.slice(0, 2).map((event) => {
+            const color = event.metadata?.color || '#6366f1';
+            return (
+              <div
+                key={event.id}
+                className="text-[10px] truncate px-1 py-0.5 rounded mb-0.5"
+                style={{ backgroundColor: `${color}20`, color }}
+              >
+                {event.title}
+              </div>
+            );
+          })}
         </div>
       </motion.button>
     );
   };
 
-  const EventCard = ({ event }: { event: CalendarEvent }) => (
-    <motion.div
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      onClick={() => openModal('editEvent', event)}
-      className="cursor-pointer"
-    >
-      <Card
-        variant="bordered"
-        padding="sm"
-        className="hover:bg-dark-700/50 transition-colors"
-        style={{ borderLeftColor: event.color, borderLeftWidth: 3 }}
+  const EventCard = ({ event }: { event: Item }) => {
+    const color = event.metadata?.color || '#6366f1';
+    const startDate = event.metadata?.start_date || event.due_date;
+    const endDate = event.metadata?.end_date || startDate;
+    const allDay = event.metadata?.all_day;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, x: -10 }}
+        animate={{ opacity: 1, x: 0 }}
+        onClick={() => openModal('editEvent', event)}
+        className="cursor-pointer"
       >
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h4 className="font-medium text-dark-100">{event.title}</h4>
-            {event.description && (
-              <p className="text-sm text-dark-400 mt-1 line-clamp-2">{event.description}</p>
-            )}
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-xs text-dark-400 flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                {event.allDay
-                  ? 'Весь день'
-                  : `${format(parseISO(event.startDate), 'HH:mm')} - ${format(
-                      parseISO(event.endDate),
-                      'HH:mm'
-                    )}`}
-              </span>
+        <Card
+          variant="bordered"
+          padding="sm"
+          className="hover:bg-dark-700/50 transition-colors"
+          style={{ borderLeftColor: color, borderLeftWidth: 3 }}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h4 className="font-medium text-dark-100">{event.title}</h4>
+              {event.content && (
+                <p className="text-sm text-dark-400 mt-1 line-clamp-2">{event.content}</p>
+              )}
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs text-dark-400 flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  {allDay
+                    ? 'Весь день'
+                    : startDate && endDate
+                    ? `${format(parseISO(startDate), 'HH:mm')} - ${format(parseISO(endDate), 'HH:mm')}`
+                    : startDate
+                    ? format(parseISO(startDate), 'HH:mm')
+                    : ''}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      </Card>
-    </motion.div>
-  );
+        </Card>
+      </motion.div>
+    );
+  };
 
   if (isLoading) {
     return (
@@ -237,7 +248,7 @@ const CalendarBoard = ({ folderId }: CalendarBoardProps) => {
                 size="sm"
                 onClick={() =>
                   openModal('createEvent', {
-                    folderId,
+                    boardId,
                     startDate: selectedDate,
                   })
                 }

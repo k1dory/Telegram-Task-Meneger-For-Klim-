@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { PageHeader } from '@/components/layout';
-import { Tabs, TabsList, TabsTrigger, TabsContent, Progress, Button, Modal } from '@/components/ui';
+import { Tabs, TabsList, TabsTrigger, TabsContent, Progress, Button } from '@/components/ui';
 import {
   NotesBoard,
   KanbanBoard,
@@ -12,25 +12,25 @@ import {
   HabitTrackerBoard,
 } from '@/components/boards';
 import { useFoldersStore, useAppStore } from '@/store';
-import { boardTypeLabels, boardTypeIcons, calculateProgress } from '@/utils';
-import type { BoardType } from '@/types';
+import { boardTypeLabels, calculateProgress } from '@/utils';
+import type { BoardType, Board } from '@/types';
 import React from 'react';
 
-const boardComponents: Record<BoardType, React.ComponentType<{ folderId: string }>> = {
+// Board components now accept boardId instead of folderId
+const boardComponents: Record<BoardType, React.ComponentType<{ boardId: string }>> = {
   notes: NotesBoard,
   kanban: KanbanBoard,
   checklist: ChecklistBoard,
-  'time_manager': TimeManagerBoard,
+  time_manager: TimeManagerBoard,
   calendar: CalendarBoard,
-  'habit_tracker': HabitTrackerBoard,
+  habit_tracker: HabitTrackerBoard,
 };
 
 const FolderDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const { currentFolder, fetchFolderById, deleteFolder, isLoading } = useFoldersStore();
-  const { openModal, closeModal, activeModal } = useAppStore();
-  const [activeBoard, setActiveBoard] = useState<BoardType | null>(null);
+  const { currentFolder, fetchFolderById, isLoading } = useFoldersStore();
+  const { openModal, setLastActiveBoardId } = useAppStore();
+  const [activeBoard, setActiveBoard] = useState<Board | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -39,17 +39,24 @@ const FolderDetail = () => {
   }, [id, fetchFolderById]);
 
   useEffect(() => {
-    if (currentFolder && !activeBoard) {
-      const boardTypes = currentFolder.boards?.map(b => b.type as BoardType) || [];
-      setActiveBoard(boardTypes[0] || 'checklist');
+    // Set the first board as active when folder loads
+    if (currentFolder?.boards?.length && !activeBoard) {
+      setActiveBoard(currentFolder.boards[0]);
     }
   }, [currentFolder, activeBoard]);
 
-  const handleDelete = async () => {
-    if (id) {
-      await deleteFolder(id);
-      closeModal();
-      navigate('/folders');
+  // Track last active board for quick create from BottomNav
+  useEffect(() => {
+    if (!activeBoard) return;
+    if (['kanban', 'checklist', 'time_manager'].includes(activeBoard.type)) {
+      setLastActiveBoardId(activeBoard.id);
+    }
+  }, [activeBoard, setLastActiveBoardId]);
+
+  const handleBoardChange = (boardType: string) => {
+    const board = currentFolder?.boards?.find(b => b.type === boardType);
+    if (board) {
+      setActiveBoard(board);
     }
   };
 
@@ -63,12 +70,9 @@ const FolderDetail = () => {
     );
   }
 
-  // Task counts will be fetched separately or calculated from items
-  const taskCount = 0; // TODO: Fetch from items API
-  const completedCount = 0; // TODO: Fetch from items API
-  const progress = calculateProgress(completedCount, taskCount);
-  const boardTypes = currentFolder.boards?.map(b => b.type as BoardType) || [];
-  const BoardComponent = activeBoard ? boardComponents[activeBoard] : null;
+  const boards = currentFolder.boards || [];
+  const progress = calculateProgress(0, 0); // TODO: Get from analytics
+  const BoardComponent = activeBoard ? boardComponents[activeBoard.type as BoardType] : null;
 
   return (
     <motion.div
@@ -81,6 +85,11 @@ const FolderDetail = () => {
         showBack
         action={
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => openModal('createBoard')}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => openModal('editFolder')}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -119,10 +128,7 @@ const FolderDetail = () => {
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-dark-300">Прогресс</span>
-              <span className="text-sm font-medium text-dark-200">
-                {completedCount} / {taskCount}
-              </span>
+              <span className="text-sm text-dark-300">Досок: {boards.length}</span>
             </div>
             <Progress value={progress} size="md" color="primary" />
           </div>
@@ -135,54 +141,41 @@ const FolderDetail = () => {
       </div>
 
       {/* Board Tabs */}
-      {boardTypes.length > 1 ? (
+      {boards.length > 1 ? (
         <Tabs
-          defaultValue={activeBoard || boardTypes[0]}
-          value={activeBoard || undefined}
-          onValueChange={(value) => setActiveBoard(value as BoardType)}
+          defaultValue={activeBoard?.type || boards[0]?.type}
+          value={activeBoard?.type}
+          onValueChange={handleBoardChange}
         >
           <TabsList className="overflow-x-auto">
-            {boardTypes.map((type) => (
-              <TabsTrigger key={type} value={type}>
-                {boardTypeLabels[type]}
+            {boards.map((board) => (
+              <TabsTrigger key={board.id} value={board.type}>
+                {boardTypeLabels[board.type as BoardType] || board.name}
               </TabsTrigger>
             ))}
           </TabsList>
 
-          {boardTypes.map((type) => (
-            <TabsContent key={type} value={type} className="mt-4">
-              {boardComponents[type] && (
+          {boards.map((board) => (
+            <TabsContent key={board.id} value={board.type} className="mt-4">
+              {boardComponents[board.type as BoardType] && (
                 <div>
-                  {React.createElement(boardComponents[type], { folderId: currentFolder.id })}
+                  {React.createElement(boardComponents[board.type as BoardType], { boardId: board.id })}
                 </div>
               )}
             </TabsContent>
           ))}
         </Tabs>
+      ) : activeBoard && BoardComponent ? (
+        <BoardComponent boardId={activeBoard.id} />
       ) : (
-        BoardComponent && <BoardComponent folderId={currentFolder.id} />
+        <div className="text-center py-12 text-dark-400">
+          Нет досок в этой папке. Создайте доску чтобы начать.
+          <div className="mt-4">
+            <Button onClick={() => openModal('createBoard')}>Создать доску</Button>
+          </div>
+        </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      <Modal
-        isOpen={activeModal === 'deleteFolder'}
-        onClose={closeModal}
-        title="Удалить папку?"
-        footer={
-          <>
-            <Button variant="ghost" onClick={closeModal}>
-              Отмена
-            </Button>
-            <Button variant="danger" onClick={handleDelete}>
-              Удалить
-            </Button>
-          </>
-        }
-      >
-        <p className="text-dark-300">
-          Вы уверены, что хотите удалить папку "{currentFolder.name}"? Все задачи и заметки в ней будут удалены безвозвратно.
-        </p>
-      </Modal>
     </motion.div>
   );
 };

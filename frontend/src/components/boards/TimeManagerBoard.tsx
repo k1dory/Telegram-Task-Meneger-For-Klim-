@@ -4,16 +4,17 @@ import { useTasksStore, useAppStore } from '@/store';
 import { Card, Button, Progress, CircularProgress, Badge } from '@/components/ui';
 import { useTimer } from '@/hooks';
 import { cn, formatDuration, priorityColors } from '@/utils';
-import type { Task } from '@/types';
+import type { Item, ItemPriority } from '@/types';
 
 interface TimeManagerBoardProps {
-  folderId: string;
+  boardId: string;
 }
 
-const TimeManagerBoard = ({ folderId }: TimeManagerBoardProps) => {
-  const { tasks, fetchTasks, activeTimerTaskId, startTimer, stopTimer, isLoading } = useTasksStore();
+const TimeManagerBoard = ({ boardId }: TimeManagerBoardProps) => {
+  const { tasks, fetchTasks, updateTask, isLoading } = useTasksStore();
   const { openModal } = useAppStore();
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Item | null>(null);
+  const [activeTimerTaskId, setActiveTimerTaskId] = useState<string | null>(null);
 
   const timer = useTimer({
     initialTime: 0,
@@ -21,8 +22,8 @@ const TimeManagerBoard = ({ folderId }: TimeManagerBoardProps) => {
   });
 
   useEffect(() => {
-    fetchTasks({ folderId });
-  }, [folderId, fetchTasks]);
+    fetchTasks(boardId);
+  }, [boardId, fetchTasks]);
 
   useEffect(() => {
     if (activeTimerTaskId) {
@@ -39,34 +40,44 @@ const TimeManagerBoard = ({ folderId }: TimeManagerBoardProps) => {
     }
   }, [activeTimerTaskId, tasks]);
 
-  const handleStartTimer = (task: Task) => {
+  const handleStartTimer = (task: Item) => {
     if (activeTimerTaskId) {
-      stopTimer();
+      handleStopTimer();
     }
     setSelectedTask(task);
-    startTimer(task.id);
+    setActiveTimerTaskId(task.id);
     timer.reset(0);
     timer.start();
   };
 
   const handleStopTimer = async () => {
+    if (selectedTask && timer.time > 0) {
+      const currentTimeSpent = selectedTask.metadata?.time_spent || 0;
+      const newTimeSpent = currentTimeSpent + Math.floor(timer.time / 60); // Convert to minutes
+      await updateTask(selectedTask.id, {
+        metadata: { ...selectedTask.metadata, time_spent: newTimeSpent },
+      });
+    }
     timer.pause();
-    await stopTimer();
+    setActiveTimerTaskId(null);
     setSelectedTask(null);
     timer.reset(0);
   };
 
   const activeTasks = tasks.filter((t) => t.status !== 'completed');
-  const totalTimeToday = tasks.reduce((sum, t) => sum + t.timeSpent, 0);
+  const totalTimeToday = tasks.reduce((sum, t) => sum + (t.metadata?.time_spent || 0), 0);
 
   // Calculate today's progress (assuming 8 hour workday = 480 minutes)
   const dailyGoal = 480;
   const dailyProgress = Math.min((totalTimeToday / dailyGoal) * 100, 100);
 
-  const TaskTimeCard = ({ task }: { task: Task }) => {
+  const TaskTimeCard = ({ task }: { task: Item }) => {
     const isActive = activeTimerTaskId === task.id;
-    const progress = task.estimatedTime
-      ? Math.min((task.timeSpent / task.estimatedTime) * 100, 100)
+    const timeSpent = task.metadata?.time_spent || 0;
+    const estimatedTime = task.metadata?.estimated_time || 0;
+    const priority: ItemPriority = task.metadata?.priority || 'medium';
+    const progress = estimatedTime
+      ? Math.min((timeSpent / estimatedTime) * 100, 100)
       : 0;
 
     return (
@@ -112,16 +123,16 @@ const TimeManagerBoard = ({ folderId }: TimeManagerBoardProps) => {
                   <div className="flex items-center gap-2 mt-1">
                     <span
                       className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: priorityColors[task.priority] }}
+                      style={{ backgroundColor: priorityColors[priority] }}
                     />
                     <span className="text-xs text-dark-400">
-                      {formatDuration(task.timeSpent)} потрачено
+                      {formatDuration(timeSpent)} потрачено
                     </span>
-                    {task.estimatedTime && (
+                    {estimatedTime > 0 && (
                       <>
                         <span className="text-dark-600">/</span>
                         <span className="text-xs text-dark-400">
-                          {formatDuration(task.estimatedTime)} запланировано
+                          {formatDuration(estimatedTime)} запланировано
                         </span>
                       </>
                     )}
@@ -142,7 +153,7 @@ const TimeManagerBoard = ({ folderId }: TimeManagerBoardProps) => {
               </div>
 
               {/* Progress bar */}
-              {task.estimatedTime && (
+              {estimatedTime > 0 && (
                 <div className="mt-3">
                   <Progress
                     value={progress}
@@ -239,7 +250,7 @@ const TimeManagerBoard = ({ folderId }: TimeManagerBoardProps) => {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-medium text-dark-200">Задачи</h3>
-          <Button size="sm" onClick={() => openModal('createTask', { folderId })}>
+          <Button size="sm" onClick={() => openModal('createTask', { boardId })}>
             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -261,7 +272,7 @@ const TimeManagerBoard = ({ folderId }: TimeManagerBoardProps) => {
               </svg>
             </div>
             <p className="text-dark-400 mb-4">Нет активных задач</p>
-            <Button onClick={() => openModal('createTask', { folderId })}>
+            <Button onClick={() => openModal('createTask', { boardId })}>
               Создать задачу
             </Button>
           </div>

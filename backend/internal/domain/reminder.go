@@ -47,7 +47,12 @@ type HabitCompletion struct {
 }
 
 type CompleteHabitRequest struct {
-	Date time.Time `json:"date" binding:"required"`
+	Date string `json:"date" binding:"required"` // YYYY-MM-DD format
+}
+
+// ParseDate parses the date string in YYYY-MM-DD format
+func (r *CompleteHabitRequest) ParseDate() (time.Time, error) {
+	return time.Parse("2006-01-02", r.Date)
 }
 
 // Analytics types

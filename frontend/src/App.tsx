@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { AppShell } from '@/components/layout';
-import { Home, Folders, FolderDetail, Settings } from '@/pages';
+import { Home, Folders, FolderDetail, Settings, Calendar } from '@/pages';
 import { useAppStore } from '@/store';
 import { useTelegram } from '@/hooks';
 import { apiClient } from '@/api';
@@ -42,37 +42,45 @@ function App() {
           } catch {
             // Token expired, create dev user
             setUser({
-              id: 'dev-user',
-              telegramId: 123456789,
+              id: 123456789,
+              telegram_id: 123456789,
               username: 'developer',
-              firstName: 'Developer',
-              lastName: 'User',
-              isPremium: false,
-              createdAt: new Date().toISOString(),
+              first_name: 'Developer',
+              last_name: 'User',
+              is_premium: false,
+              language_code: 'ru',
+              notification_enabled: true,
+              reminder_hours: [6, 8, 12],
               settings: {
-                theme: 'dark',
-                notifications: true,
-                language: 'ru',
-                defaultView: 'list',
+                notification_enabled: true,
+                reminder_hours: [6, 8, 12],
+                language_code: 'ru',
               },
+              last_active_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
             });
           }
         } else {
           // No token, create dev user for local development
           setUser({
-            id: 'dev-user',
-            telegramId: 123456789,
+            id: 123456789,
+            telegram_id: 123456789,
             username: 'developer',
-            firstName: 'Developer',
-            lastName: 'User',
-            isPremium: false,
-            createdAt: new Date().toISOString(),
+            first_name: 'Developer',
+            last_name: 'User',
+            is_premium: false,
+            language_code: 'ru',
+            notification_enabled: true,
+            reminder_hours: [6, 8, 12],
             settings: {
-              theme: 'dark',
-              notifications: true,
-              language: 'ru',
-              defaultView: 'list',
+              notification_enabled: true,
+              reminder_hours: [6, 8, 12],
+              language_code: 'ru',
             },
+            last_active_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           });
         }
         setIsLoading(false);
@@ -91,8 +99,7 @@ function App() {
             <Route path="/folders" element={<Folders />} />
             <Route path="/folders/:id" element={<FolderDetail />} />
             <Route path="/settings" element={<Settings />} />
-            {/* Calendar route - uses the same page but different context */}
-            <Route path="/calendar" element={<Folders />} />
+            <Route path="/calendar" element={<Calendar />} />
           </Routes>
         </AnimatePresence>
       </AppShell>

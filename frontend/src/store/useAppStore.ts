@@ -25,6 +25,7 @@ interface AppState {
   activeModal: string | null;
   modalData: unknown;
   theme: 'dark' | 'light' | 'auto';
+  lastActiveBoardId: string | null;
 
   // Actions
   setUser: (user: User | null) => void;
@@ -36,6 +37,7 @@ interface AppState {
   openModal: (modalId: string, data?: unknown) => void;
   closeModal: () => void;
   setTheme: (theme: 'dark' | 'light' | 'auto') => void;
+  setLastActiveBoardId: (boardId: string | null) => void;
   updateUserSettings: (settings: Partial<UserSettings>) => void;
   logout: () => void;
 }
@@ -53,6 +55,7 @@ export const useAppStore = create<AppState>()(
       activeModal: null,
       modalData: null,
       theme: 'dark',
+      lastActiveBoardId: null,
 
       // Actions
       setUser: (user) =>
@@ -78,15 +81,26 @@ export const useAppStore = create<AppState>()(
 
       setTheme: (theme) => set({ theme }),
 
+      setLastActiveBoardId: (lastActiveBoardId) => set({ lastActiveBoardId }),
+
       updateUserSettings: (settings) =>
-        set((state) => ({
-          user: state.user
-            ? {
-                ...state.user,
-                settings: { ...state.user.settings, ...settings },
-              }
-            : null,
-        })),
+        set((state) => {
+          if (!state.user) return state;
+
+          const updatedUser = { ...state.user };
+
+          if (settings.notification_enabled !== undefined) {
+            updatedUser.notification_enabled = settings.notification_enabled;
+          }
+          if (settings.reminder_hours !== undefined) {
+            updatedUser.reminder_hours = settings.reminder_hours;
+          }
+          if (settings.language_code !== undefined) {
+            updatedUser.language_code = settings.language_code;
+          }
+
+          return { user: updatedUser };
+        }),
 
       logout: () => {
         // Clear JWT token from API client
@@ -105,6 +119,7 @@ export const useAppStore = create<AppState>()(
       name: 'app-storage',
       partialize: (state) => ({
         theme: state.theme,
+        lastActiveBoardId: state.lastActiveBoardId,
       }),
     }
   )

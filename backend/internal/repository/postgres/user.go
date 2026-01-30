@@ -47,6 +47,14 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*domain.User, e
 		return nil, err
 	}
 
+	// Populate computed fields
+	user.TelegramID = user.ID
+	user.Settings = &domain.UserSettings{
+		NotificationEnabled: user.NotificationEnabled,
+		ReminderHours:       user.ReminderHours,
+		LanguageCode:        user.LanguageCode,
+	}
+
 	return &user, nil
 }
 
