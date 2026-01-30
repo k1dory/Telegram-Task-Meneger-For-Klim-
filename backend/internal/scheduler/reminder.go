@@ -246,7 +246,7 @@ func (s *ReminderScheduler) checkOverdueTasks() {
 
 // checkDueSoonTasks sends notifications about tasks due soon
 func (s *ReminderScheduler) checkDueSoonTasks() {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	_, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	s.logger.Debug("checking tasks due soon")
