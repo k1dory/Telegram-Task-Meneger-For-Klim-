@@ -88,7 +88,12 @@ export const useAppStore = create<AppState>()(
           if (!state.user) return state;
 
           const updatedUser = { ...state.user };
-          const updatedSettings = { ...state.user.settings };
+          const updatedSettings = {
+            notification_enabled: state.user.settings?.notification_enabled ?? state.user.notification_enabled,
+            reminder_hours: state.user.settings?.reminder_hours ?? state.user.reminder_hours,
+            language_code: state.user.settings?.language_code ?? state.user.language_code,
+            timezone: state.user.settings?.timezone,
+          };
 
           if (settings.notification_enabled !== undefined) {
             updatedUser.notification_enabled = settings.notification_enabled;
