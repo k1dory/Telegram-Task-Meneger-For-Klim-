@@ -1,0 +1,184 @@
+# Docker Compose for Production
+# Usage: docker compose -f docker-compose.prod.yml up -d
+#
+# Required environment variables (set in .env file):
+# - POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+# - DATABASE_URL
+# - TELEGRAM_BOT_TOKEN
+# - JWT_SECRET
+# - DOCKER_REGISTRY
+# - DOMAIN (e.g., taskmanager.example.com)
+
+services:
+  # ===========================================
+  # Nginx - Reverse Proxy with SSL
+  # ===========================================
+  nginx:
+    image: nginx:alpine
+    container_name: taskmanager-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - certbot_webroot:/var/www/certbot:ro
+      - certbot_certs:/etc/letsencrypt:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
+    networks:
+      - taskmanager-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===========================================
+  # Frontend - React Static Files
+  # ===========================================
+  frontend:
+    image: ${DOCKER_REGISTRY:-ghcr.io/username}/taskmanager-frontend:${VERSION:-latest}
+    container_name: taskmanager-frontend
+    networks:
+      - taskmanager-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ===========================================
+  # Backend - Go API Server
+  # ===========================================
+  backend:
+    image: ${DOCKER_REGISTRY:-ghcr.io/username}/taskmanager-backend:${VERSION:-latest}
+    container_name: taskmanager-backend
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - JWT_SECRET=${JWT_SECRET}
+      - GIN_MODE=release
+      - API_PORT=8080
+      - NOTIFICATION_CHECK_INTERVAL=${NOTIFICATION_CHECK_INTERVAL:-30m}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - taskmanager-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # ===========================================
+  # PostgreSQL Database
+  # ===========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: taskmanager-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    networks:
+      - taskmanager-network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # ===========================================
+  # Certbot - SSL Certificate Management
+  # ===========================================
+  certbot:
+    image: certbot/certbot:latest
+    container_name: taskmanager-certbot
+    volumes:
+      - certbot_webroot:/var/www/certbot
+      - certbot_certs:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - taskmanager-network
+    restart: always
+    profiles:
+      - ssl
+
+  # ===========================================
+  # Backup Service (runs periodically)
+  # ===========================================
+  backup:
+    image: postgres:16-alpine
+    container_name: taskmanager-backup
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "-c", "chmod +x /backup.sh && crond -f -l 2"]
+    networks:
+      - taskmanager-network
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - backup
+
+# ===========================================
+# Networks
+# ===========================================
+networks:
+  taskmanager-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ===========================================
+# Volumes
+# ===========================================
+volumes:
+  postgres_data:
+    driver: local
+  certbot_webroot:
+    driver: local
+  certbot_certs:
+    driver: local
+  nginx_logs:
+    driver: local

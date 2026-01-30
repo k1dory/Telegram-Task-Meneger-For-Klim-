@@ -1,0 +1,132 @@
+# Docker Compose for Development
+# Usage: docker compose up -d
+# Logs: docker compose logs -f
+
+services:
+  # ===========================================
+  # Frontend - React + Vite (Hot Reload)
+  # ===========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: taskmanager-frontend-dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8080/api
+      - VITE_BOT_USERNAME=${VITE_BOT_USERNAME:-taskmanager_bot}
+    depends_on:
+      - backend
+    networks:
+      - taskmanager-network
+    restart: unless-stopped
+
+  # ===========================================
+  # Backend - Go + Gin (with Air hot reload)
+  # ===========================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: taskmanager-backend-dev
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://taskmanager:devpassword@postgres:5432/taskmanager?sslmode=disable
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      - GIN_MODE=debug
+      - API_PORT=8080
+      - NOTIFICATION_CHECK_INTERVAL=30m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - taskmanager-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ===========================================
+  # PostgreSQL Database
+  # ===========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: taskmanager-postgres-dev
+    environment:
+      POSTGRES_USER: taskmanager
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: taskmanager
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - taskmanager-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskmanager -d taskmanager"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ===========================================
+  # Nginx Reverse Proxy (Development)
+  # ===========================================
+  nginx:
+    image: nginx:alpine
+    container_name: taskmanager-nginx-dev
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - taskmanager-network
+    restart: unless-stopped
+
+  # ===========================================
+  # Adminer - Database GUI (Development only)
+  # ===========================================
+  adminer:
+    image: adminer:latest
+    container_name: taskmanager-adminer
+    ports:
+      - "8081:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on:
+      - postgres
+    networks:
+      - taskmanager-network
+    restart: unless-stopped
+    profiles:
+      - tools
+
+# ===========================================
+# Networks
+# ===========================================
+networks:
+  taskmanager-network:
+    driver: bridge
+
+# ===========================================
+# Volumes
+# ===========================================
+volumes:
+  postgres_data:
+    driver: local

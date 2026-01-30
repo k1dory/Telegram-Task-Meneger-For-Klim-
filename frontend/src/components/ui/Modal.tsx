@@ -1,0 +1,118 @@
+import { Fragment, ReactNode } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/utils';
+import { useClickOutside } from '@/hooks';
+
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title?: string;
+  description?: string;
+  children: ReactNode;
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  showCloseButton?: boolean;
+  closeOnOverlayClick?: boolean;
+  footer?: ReactNode;
+}
+
+const Modal = ({
+  isOpen,
+  onClose,
+  title,
+  description,
+  children,
+  size = 'md',
+  showCloseButton = true,
+  closeOnOverlayClick = true,
+  footer,
+}: ModalProps) => {
+  const modalRef = useClickOutside<HTMLDivElement>(() => {
+    if (closeOnOverlayClick) onClose();
+  }, isOpen);
+
+  const sizes = {
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-lg',
+    xl: 'max-w-xl',
+    full: 'max-w-full mx-4',
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <Fragment>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+          />
+
+          {/* Modal Container */}
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+            <motion.div
+              ref={modalRef}
+              initial={{ opacity: 0, y: 100, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 100, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className={cn(
+                'w-full bg-dark-800 rounded-t-3xl sm:rounded-2xl shadow-2xl',
+                'border border-dark-700 overflow-hidden',
+                sizes[size]
+              )}
+            >
+              {/* Header */}
+              {(title || showCloseButton) && (
+                <div className="flex items-center justify-between px-6 py-4 border-b border-dark-700">
+                  <div>
+                    {title && (
+                      <h2 className="text-lg font-semibold text-dark-50">{title}</h2>
+                    )}
+                    {description && (
+                      <p className="text-sm text-dark-400 mt-1">{description}</p>
+                    )}
+                  </div>
+                  {showCloseButton && (
+                    <button
+                      onClick={onClose}
+                      className="p-2 rounded-xl hover:bg-dark-700 transition-colors"
+                    >
+                      <svg
+                        className="w-5 h-5 text-dark-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Content */}
+              <div className="px-6 py-4 max-h-[70vh] overflow-y-auto">{children}</div>
+
+              {/* Footer */}
+              {footer && (
+                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-dark-700 bg-dark-900/50">
+                  {footer}
+                </div>
+              )}
+            </motion.div>
+          </div>
+        </Fragment>
+      )}
+    </AnimatePresence>
+  );
+};
+
+export default Modal;
