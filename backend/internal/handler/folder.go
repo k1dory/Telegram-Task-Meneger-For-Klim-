@@ -67,7 +67,7 @@ func (h *FolderHandler) GetFolder(c *gin.Context) {
 		return
 	}
 
-	folderID, err := uuid.Parse(c.Param("id"))
+	folderID, err := uuid.Parse(c.Param("folderId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid folder ID"})
 		return
@@ -145,7 +145,7 @@ func (h *FolderHandler) UpdateFolder(c *gin.Context) {
 		return
 	}
 
-	folderID, err := uuid.Parse(c.Param("id"))
+	folderID, err := uuid.Parse(c.Param("folderId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid folder ID"})
 		return
@@ -192,7 +192,7 @@ func (h *FolderHandler) DeleteFolder(c *gin.Context) {
 		return
 	}
 
-	folderID, err := uuid.Parse(c.Param("id"))
+	folderID, err := uuid.Parse(c.Param("folderId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid folder ID"})
 		return

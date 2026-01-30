@@ -170,9 +170,9 @@ func main() {
 				folders.GET("", folderHandler.ListFolders)
 				folders.POST("", folderHandler.CreateFolder)
 				folders.PUT("/reorder", folderHandler.ReorderFolders)
-				folders.GET("/:id", folderHandler.GetFolder)
-				folders.PUT("/:id", folderHandler.UpdateFolder)
-				folders.DELETE("/:id", folderHandler.DeleteFolder)
+				folders.GET("/:folderId", folderHandler.GetFolder)
+				folders.PUT("/:folderId", folderHandler.UpdateFolder)
+				folders.DELETE("/:folderId", folderHandler.DeleteFolder)
 
 				// Boards within folder
 				folders.GET("/:folderId/boards", boardHandler.ListBoards)
