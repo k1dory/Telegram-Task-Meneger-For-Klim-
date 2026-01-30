@@ -96,7 +96,7 @@ const Modal = ({
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               className={cn(
                 'w-full bg-dark-800 rounded-t-3xl sm:rounded-2xl shadow-2xl',
-                'border border-dark-700 overflow-hidden flex flex-col',
+                'border border-dark-700 overflow-visible flex flex-col',
                 'max-h-[90%]',
                 sizes[size]
               )}
