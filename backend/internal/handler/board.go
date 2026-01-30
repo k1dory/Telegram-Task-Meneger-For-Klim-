@@ -83,7 +83,7 @@ func (h *BoardHandler) GetBoard(c *gin.Context) {
 		return
 	}
 
-	boardID, err := uuid.Parse(c.Param("id"))
+	boardID, err := uuid.Parse(c.Param("boardId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid board ID"})
 		return
@@ -178,7 +178,7 @@ func (h *BoardHandler) UpdateBoard(c *gin.Context) {
 		return
 	}
 
-	boardID, err := uuid.Parse(c.Param("id"))
+	boardID, err := uuid.Parse(c.Param("boardId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid board ID"})
 		return
@@ -225,7 +225,7 @@ func (h *BoardHandler) DeleteBoard(c *gin.Context) {
 		return
 	}
 
-	boardID, err := uuid.Parse(c.Param("id"))
+	boardID, err := uuid.Parse(c.Param("boardId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid board ID"})
 		return

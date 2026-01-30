@@ -183,9 +183,9 @@ func main() {
 			// Boards
 			boards := protected.Group("/boards")
 			{
-				boards.GET("/:id", boardHandler.GetBoard)
-				boards.PUT("/:id", boardHandler.UpdateBoard)
-				boards.DELETE("/:id", boardHandler.DeleteBoard)
+				boards.GET("/:boardId", boardHandler.GetBoard)
+				boards.PUT("/:boardId", boardHandler.UpdateBoard)
+				boards.DELETE("/:boardId", boardHandler.DeleteBoard)
 
 				// Items within board
 				boards.GET("/:boardId/items", itemHandler.ListItems)
