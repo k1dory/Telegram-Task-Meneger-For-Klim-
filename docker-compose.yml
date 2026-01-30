@@ -40,6 +40,7 @@ services:
     environment:
       - DATABASE_URL=postgres://taskmanager:devpassword@postgres:5432/taskmanager?sslmode=disable
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_MINI_APP_URL=${TELEGRAM_MINI_APP_URL:-http://localhost:5173}
       - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
       - GIN_MODE=debug
       - API_PORT=8080

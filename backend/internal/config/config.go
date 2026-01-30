@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -45,6 +46,8 @@ type JWTConfig struct {
 }
 
 func Load() (*Config, error) {
+	dbConfig := loadDatabaseConfig()
+
 	return &Config{
 		Server: ServerConfig{
 			Port:         getEnv("API_PORT", "8080"),
@@ -52,18 +55,7 @@ func Load() (*Config, error) {
 			WriteTimeout: getDurationEnv("SERVER_WRITE_TIMEOUT", 10*time.Second),
 			Mode:         getEnv("GIN_MODE", "debug"),
 		},
-		Database: DatabaseConfig{
-			Host:            getEnv("POSTGRES_HOST", "localhost"),
-			Port:            getEnv("POSTGRES_PORT", "5432"),
-			User:            getEnv("POSTGRES_USER", "taskmanager"),
-			Password:        getEnv("POSTGRES_PASSWORD", "postgres"),
-			DBName:          getEnv("POSTGRES_DB", "taskmanager"),
-			SSLMode:         getEnv("DB_SSL_MODE", "disable"),
-			MaxConns:        int32(getIntEnv("DB_MAX_CONNS", 25)),
-			MinConns:        int32(getIntEnv("DB_MIN_CONNS", 5)),
-			MaxConnLifetime: getDurationEnv("DB_MAX_CONN_LIFETIME", time.Hour),
-			MaxConnIdleTime: getDurationEnv("DB_MAX_CONN_IDLE_TIME", 30*time.Minute),
-		},
+		Database: dbConfig,
 		Telegram: TelegramConfig{
 			BotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
 			AppURL:   getEnv("TELEGRAM_MINI_APP_URL", ""),
@@ -73,6 +65,45 @@ func Load() (*Config, error) {
 			ExpirationHours: getIntEnv("JWT_EXPIRATION_HOURS", 720), // 30 days
 		},
 	}, nil
+}
+
+// loadDatabaseConfig parses DATABASE_URL if available, otherwise uses individual env vars
+func loadDatabaseConfig() DatabaseConfig {
+	config := DatabaseConfig{
+		MaxConns:        int32(getIntEnv("DB_MAX_CONNS", 25)),
+		MinConns:        int32(getIntEnv("DB_MIN_CONNS", 5)),
+		MaxConnLifetime: getDurationEnv("DB_MAX_CONN_LIFETIME", time.Hour),
+		MaxConnIdleTime: getDurationEnv("DB_MAX_CONN_IDLE_TIME", 30*time.Minute),
+	}
+
+	// Try DATABASE_URL first (used by docker-compose)
+	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+		if parsed, err := url.Parse(dbURL); err == nil {
+			config.Host = parsed.Hostname()
+			config.Port = parsed.Port()
+			if config.Port == "" {
+				config.Port = "5432"
+			}
+			config.User = parsed.User.Username()
+			config.Password, _ = parsed.User.Password()
+			config.DBName = strings.TrimPrefix(parsed.Path, "/")
+			config.SSLMode = parsed.Query().Get("sslmode")
+			if config.SSLMode == "" {
+				config.SSLMode = "disable"
+			}
+			return config
+		}
+	}
+
+	// Fall back to individual env vars
+	config.Host = getEnv("POSTGRES_HOST", "localhost")
+	config.Port = getEnv("POSTGRES_PORT", "5432")
+	config.User = getEnv("POSTGRES_USER", "taskmanager")
+	config.Password = getEnv("POSTGRES_PASSWORD", "postgres")
+	config.DBName = getEnv("POSTGRES_DB", "taskmanager")
+	config.SSLMode = getEnv("DB_SSL_MODE", "disable")
+
+	return config
 }
 
 func (c *DatabaseConfig) ConnectionString() string {

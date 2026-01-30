@@ -1,73 +1,107 @@
 import apiClient from './client';
-import type { Habit, HabitFrequency, PaginatedResponse } from '@/types';
+import type { HabitFrequency } from '@/types';
+
+// Habit is an Item with habit-specific metadata
+export interface Habit {
+  id: string;
+  board_id: string;
+  title: string;
+  content?: string;
+  status: string;
+  position: number;
+  metadata: {
+    color?: string;
+    icon?: string;
+    frequency?: HabitFrequency;
+    target_days?: number[];
+    streak?: number;
+    longest_streak?: number;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HabitCompletion {
+  id: string;
+  item_id: string;
+  completed_date: string;
+  created_at: string;
+}
 
 export interface CreateHabitDto {
-  folderId: string;
-  name: string;
-  description?: string;
-  color?: string;
-  icon?: string;
-  frequency?: HabitFrequency;
-  targetDays?: number[];
+  title: string;
+  content?: string;
+  metadata?: {
+    color?: string;
+    icon?: string;
+    frequency?: HabitFrequency;
+    target_days?: number[];
+  };
 }
 
 export interface UpdateHabitDto {
-  name?: string;
-  description?: string;
-  color?: string;
-  icon?: string;
-  frequency?: HabitFrequency;
-  targetDays?: number[];
+  title?: string;
+  content?: string;
+  metadata?: {
+    color?: string;
+    icon?: string;
+    frequency?: HabitFrequency;
+    target_days?: number[];
+  };
 }
 
 export interface HabitFilters {
-  folderId?: string;
-  frequency?: HabitFrequency;
+  // Habits typically don't need filters beyond board
 }
 
 export const habitsApi = {
-  async getAll(filters: HabitFilters = {}, page: number = 1, limit: number = 50) {
-    const params = new URLSearchParams();
-    params.append('page', page.toString());
-    params.append('limit', limit.toString());
-
-    if (filters.folderId) params.append('folderId', filters.folderId);
-    if (filters.frequency) params.append('frequency', filters.frequency);
-
-    return apiClient.get<PaginatedResponse<Habit>>(`/habits?${params.toString()}`);
+  // Get habits in a board
+  async getByBoard(boardId: string) {
+    return apiClient.get<Habit[]>(`/boards/${boardId}/items`);
   },
 
+  // Get single habit
   async getById(id: string) {
-    return apiClient.get<Habit>(`/habits/${id}`);
+    return apiClient.get<Habit>(`/items/${id}`);
   },
 
-  async create(data: CreateHabitDto) {
-    return apiClient.post<Habit>('/habits', data);
+  // Create habit in a board
+  async create(boardId: string, data: CreateHabitDto) {
+    return apiClient.post<Habit>(`/boards/${boardId}/items`, {
+      ...data,
+      status: 'pending',
+    });
   },
 
+  // Update habit
   async update(id: string, data: UpdateHabitDto) {
-    return apiClient.patch<Habit>(`/habits/${id}`, data);
+    return apiClient.put<Habit>(`/items/${id}`, data);
   },
 
+  // Delete habit
   async delete(id: string) {
-    return apiClient.delete<void>(`/habits/${id}`);
+    return apiClient.delete<void>(`/items/${id}`);
   },
 
+  // Mark habit as complete for a date
   async markComplete(id: string, date: string) {
-    return apiClient.post<Habit>(`/habits/${id}/complete`, { date });
+    return apiClient.post<void>(`/items/${id}/habit/complete`, { date });
   },
 
-  async markIncomplete(id: string, date: string) {
-    return apiClient.post<Habit>(`/habits/${id}/incomplete`, { date });
+  // Get habit completions for a date range
+  async getCompletions(id: string, from?: string, to?: string) {
+    const params = new URLSearchParams();
+    if (from) params.append('from', from);
+    if (to) params.append('to', to);
+
+    const query = params.toString();
+    const url = `/items/${id}/habit/completions${query ? `?${query}` : ''}`;
+    return apiClient.get<HabitCompletion[]>(url);
   },
 
-  async getStats(id: string, startDate: string, endDate: string) {
-    return apiClient.get<{
-      completionRate: number;
-      currentStreak: number;
-      longestStreak: number;
-      totalCompletions: number;
-    }>(`/habits/${id}/stats?startDate=${startDate}&endDate=${endDate}`);
+  // Reorder habits in board
+  async reorder(boardId: string, itemIds: string[]) {
+    return apiClient.put<void>(`/boards/${boardId}/items/reorder`, { item_ids: itemIds });
   },
 };
 

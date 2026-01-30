@@ -170,22 +170,23 @@ func (s *ReminderScheduler) checkOverdueTasks() {
 
 	s.logger.Info("found overdue tasks", "count", len(overdueTasks))
 
-	// Group tasks by user
-	tasksByUser := make(map[int64][]struct {
-		task interface{}
-	})
+	if len(overdueTasks) == 0 {
+		return
+	}
 
-	type overdueTask struct {
-		UserID    int64
+	// Group tasks by user
+	userTasks := make(map[int64][]struct {
 		ItemID    interface{}
 		Title     string
 		BoardName string
-	}
+	})
 
-	userTasks := make(map[int64][]overdueTask)
 	for _, task := range overdueTasks {
-		userTasks[task.UserID] = append(userTasks[task.UserID], overdueTask{
-			UserID:    task.UserID,
+		userTasks[task.UserID] = append(userTasks[task.UserID], struct {
+			ItemID    interface{}
+			Title     string
+			BoardName string
+		}{
 			ItemID:    task.ItemID,
 			Title:     task.Title,
 			BoardName: task.BoardName,
@@ -194,6 +195,7 @@ func (s *ReminderScheduler) checkOverdueTasks() {
 
 	// Send one notification per user with all their overdue tasks
 	for userID, tasks := range userTasks {
+		// Convert to domain.OverdueTask slice
 		domainTasks := make([]struct {
 			Title     string
 			BoardName string
@@ -205,42 +207,18 @@ func (s *ReminderScheduler) checkOverdueTasks() {
 			domainTasks[i].BoardName = t.BoardName
 		}
 
-		// Create OverdueTask slice for notification
-		var notifyTasks []struct {
-			Title     string
-			BoardName string
-			ItemID    string
-		}
-
-		for _, t := range tasks {
-			notifyTasks = append(notifyTasks, struct {
-				Title     string
-				BoardName string
-				ItemID    string
-			}{
-				Title:     t.Title,
-				BoardName: t.BoardName,
-			})
-		}
-
-		// Use existing domain types
-		domainOverdueTasks := make([]struct {
-			Title     string
-			BoardName string
-		}, len(tasks))
-
-		for i, t := range tasks {
-			domainOverdueTasks[i].Title = t.Title
-			domainOverdueTasks[i].BoardName = t.BoardName
-		}
-
 		s.logger.Info("sending overdue notification",
 			"user_id", userID,
 			"task_count", len(tasks),
 		)
 
-		// Don't have direct access to domain types here, so log for now
-		_ = tasksByUser
+		// Send notification via the notification service
+		if err := s.notificationSvc.SendOverdueTasksNotification(ctx, userID, overdueTasks); err != nil {
+			s.logger.Error("failed to send overdue tasks notification",
+				"user_id", userID,
+				"error", err,
+			)
+		}
 	}
 }
 

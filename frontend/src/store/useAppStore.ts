@@ -88,12 +88,18 @@ export const useAppStore = create<AppState>()(
             : null,
         })),
 
-      logout: () =>
+      logout: () => {
+        // Clear JWT token from API client
+        import('@/api/client').then(({ default: apiClient }) => {
+          apiClient.logout();
+        });
         set({
           user: null,
           telegramUser: null,
           isAuthenticated: false,
-        }),
+          error: null,
+        });
+      },
     }),
     {
       name: 'app-storage',

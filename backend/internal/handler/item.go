@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -606,8 +607,8 @@ func (h *ItemHandler) GetCompletionStats(c *gin.Context) {
 
 	days := 7
 	if daysStr := c.Query("days"); daysStr != "" {
-		if _, err := c.GetQuery("days"); err {
-			days = 7 // Use default
+		if parsed, err := strconv.Atoi(daysStr); err == nil && parsed > 0 && parsed <= 365 {
+			days = parsed
 		}
 	}
 

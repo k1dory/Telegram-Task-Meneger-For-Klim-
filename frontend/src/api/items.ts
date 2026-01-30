@@ -116,14 +116,15 @@ export const itemsApi = {
     return apiClient.post<void>(`/items/${id}/habit/complete`, { date });
   },
 
-  async getHabitCompletions(id: string, startDate?: string, endDate?: string) {
+  async getHabitCompletions(id: string, from?: string, to?: string) {
     const params = new URLSearchParams();
-    if (startDate) params.append('start_date', startDate);
-    if (endDate) params.append('end_date', endDate);
+    if (from) params.append('from', from);
+    if (to) params.append('to', to);
 
     const query = params.toString();
     const url = `/items/${id}/habit/completions${query ? `?${query}` : ''}`;
-    return apiClient.get<{ date: string; completed: boolean }[]>(url);
+    // Backend returns { id, item_id, completed_date, created_at }
+    return apiClient.get<{ id: string; item_id: string; completed_date: string; created_at: string }[]>(url);
   },
 };
 

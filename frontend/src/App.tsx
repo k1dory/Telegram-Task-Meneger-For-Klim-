@@ -28,23 +28,8 @@ function App() {
           setUser(authResponse.user);
         } catch (error) {
           console.error('Authentication failed:', error);
-          // Fallback: use Telegram data directly if backend is unavailable
-          setUser({
-            id: telegramUser.id.toString(),
-            telegramId: telegramUser.id,
-            username: telegramUser.username,
-            firstName: telegramUser.first_name,
-            lastName: telegramUser.last_name,
-            photoUrl: telegramUser.photo_url,
-            isPremium: telegramUser.is_premium || false,
-            createdAt: new Date().toISOString(),
-            settings: {
-              theme: 'dark',
-              notifications: true,
-              language: telegramUser.language_code || 'ru',
-              defaultView: 'list',
-            },
-          });
+          setError('Не удалось подключиться к серверу. Попробуйте позже.');
+          // Don't set fake user - this would cause API calls to fail with 401
         }
 
         setIsLoading(false);

@@ -1,68 +1,42 @@
 import apiClient from './client';
-import type { Statistics, DayStats, HabitStats } from '@/types';
+
+// Analytics overview response from backend
+export interface AnalyticsOverview {
+  total_tasks: number;
+  completed_tasks: number;
+  pending_tasks: number;
+  overdue_tasks: number;
+  completion_rate: number;
+  total_folders: number;
+  total_boards: number;
+  active_streaks: number;
+  tasks_today: number;
+  tasks_this_week: number;
+}
+
+// Completion stats for a single day
+export interface CompletionStats {
+  date: string;
+  completed: number;
+  created: number;
+}
 
 export interface StatsFilters {
-  folderId?: string;
-  startDate?: string;
-  endDate?: string;
+  days?: number;
 }
 
 export const statsApi = {
-  async getOverview(filters: StatsFilters = {}) {
-    const params = new URLSearchParams();
-    if (filters.folderId) params.append('folderId', filters.folderId);
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
-
-    return apiClient.get<Statistics>(`/stats/overview?${params.toString()}`);
+  // Get overall analytics overview
+  async getOverview() {
+    return apiClient.get<AnalyticsOverview>('/analytics/overview');
   },
 
-  async getCompletionsByDay(filters: StatsFilters = {}) {
+  // Get completion statistics for the last N days
+  async getCompletionStats(days: number = 7) {
     const params = new URLSearchParams();
-    if (filters.folderId) params.append('folderId', filters.folderId);
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
+    params.append('days', days.toString());
 
-    return apiClient.get<DayStats[]>(`/stats/completions?${params.toString()}`);
-  },
-
-  async getTimeSpent(filters: StatsFilters = {}) {
-    const params = new URLSearchParams();
-    if (filters.folderId) params.append('folderId', filters.folderId);
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
-
-    return apiClient.get<{
-      total: number;
-      byDay: { date: string; minutes: number }[];
-      byTask: { taskId: string; title: string; minutes: number }[];
-    }>(`/stats/time-spent?${params.toString()}`);
-  },
-
-  async getHabitStats(filters: StatsFilters = {}) {
-    const params = new URLSearchParams();
-    if (filters.folderId) params.append('folderId', filters.folderId);
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
-
-    return apiClient.get<HabitStats[]>(`/stats/habits?${params.toString()}`);
-  },
-
-  async getProductivityScore(filters: StatsFilters = {}) {
-    const params = new URLSearchParams();
-    if (filters.folderId) params.append('folderId', filters.folderId);
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
-
-    return apiClient.get<{
-      score: number;
-      trend: number;
-      factors: {
-        tasksCompleted: number;
-        habitsCompleted: number;
-        timeTracked: number;
-      };
-    }>(`/stats/productivity?${params.toString()}`);
+    return apiClient.get<CompletionStats[]>(`/analytics/completion?${params.toString()}`);
   },
 };
 

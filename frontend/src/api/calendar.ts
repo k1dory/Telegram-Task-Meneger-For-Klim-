@@ -1,69 +1,102 @@
 import apiClient from './client';
-import type { CalendarEvent, PaginatedResponse } from '@/types';
+
+// CalendarEvent is an Item with event-specific metadata
+export interface CalendarEvent {
+  id: string;
+  board_id: string;
+  title: string;
+  content?: string;
+  status: string;
+  position: number;
+  due_date?: string;
+  metadata: {
+    start_date?: string;
+    end_date?: string;
+    all_day?: boolean;
+    color?: string;
+    reminder?: number;
+  };
+  created_at: string;
+  updated_at: string;
+}
 
 export interface CreateEventDto {
-  folderId: string;
   title: string;
-  description?: string;
-  startDate: string;
-  endDate: string;
-  allDay?: boolean;
-  color?: string;
-  reminder?: number;
+  content?: string;
+  due_date?: string;
+  metadata?: {
+    start_date?: string;
+    end_date?: string;
+    all_day?: boolean;
+    color?: string;
+    reminder?: number;
+  };
 }
 
 export interface UpdateEventDto {
   title?: string;
-  description?: string;
-  startDate?: string;
-  endDate?: string;
-  allDay?: boolean;
-  color?: string;
-  reminder?: number | null;
+  content?: string;
+  due_date?: string | null;
+  metadata?: {
+    start_date?: string;
+    end_date?: string;
+    all_day?: boolean;
+    color?: string;
+    reminder?: number | null;
+  };
 }
 
 export interface EventFilters {
-  folderId?: string;
-  startDate?: string;
-  endDate?: string;
+  due_before?: string;
+  due_after?: string;
 }
 
 export const calendarApi = {
-  async getAll(filters: EventFilters = {}, page: number = 1, limit: number = 100) {
+  // Get events in a board
+  async getByBoard(boardId: string, filters: EventFilters = {}) {
     const params = new URLSearchParams();
-    params.append('page', page.toString());
-    params.append('limit', limit.toString());
+    if (filters.due_before) params.append('due_before', filters.due_before);
+    if (filters.due_after) params.append('due_after', filters.due_after);
 
-    if (filters.folderId) params.append('folderId', filters.folderId);
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
-
-    return apiClient.get<PaginatedResponse<CalendarEvent>>(`/calendar?${params.toString()}`);
+    const query = params.toString();
+    const url = `/boards/${boardId}/items${query ? `?${query}` : ''}`;
+    return apiClient.get<CalendarEvent[]>(url);
   },
 
+  // Get single event
   async getById(id: string) {
-    return apiClient.get<CalendarEvent>(`/calendar/${id}`);
+    return apiClient.get<CalendarEvent>(`/items/${id}`);
   },
 
-  async create(data: CreateEventDto) {
-    return apiClient.post<CalendarEvent>('/calendar', data);
+  // Create event in a board
+  async create(boardId: string, data: CreateEventDto) {
+    return apiClient.post<CalendarEvent>(`/boards/${boardId}/items`, {
+      ...data,
+      status: 'pending',
+    });
   },
 
+  // Update event
   async update(id: string, data: UpdateEventDto) {
-    return apiClient.patch<CalendarEvent>(`/calendar/${id}`, data);
+    return apiClient.put<CalendarEvent>(`/items/${id}`, data);
   },
 
+  // Delete event
   async delete(id: string) {
-    return apiClient.delete<void>(`/calendar/${id}`);
+    return apiClient.delete<void>(`/items/${id}`);
   },
 
-  async getByMonth(year: number, month: number, folderId?: string) {
-    const params = new URLSearchParams();
-    params.append('year', year.toString());
-    params.append('month', month.toString());
-    if (folderId) params.append('folderId', folderId);
+  // Set reminder for event
+  async setReminder(id: string, remindAt: string, message?: string) {
+    return apiClient.post<void>(`/items/${id}/reminder`, {
+      remind_at: remindAt,
+      message
+    });
+  },
 
-    return apiClient.get<CalendarEvent[]>(`/calendar/month?${params.toString()}`);
+  // Reorder events in board
+  async reorder(boardId: string, itemIds: string[]) {
+    return apiClient.put<void>(`/boards/${boardId}/items/reorder`, { item_ids: itemIds });
   },
 };
 

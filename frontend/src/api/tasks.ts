@@ -1,102 +1,141 @@
 import apiClient from './client';
-import type { Task, TaskStatus, TaskPriority, Subtask, PaginatedResponse } from '@/types';
+import type { TaskStatus, TaskPriority } from '@/types';
+
+// Task is an Item with task-specific metadata
+export interface Task {
+  id: string;
+  board_id: string;
+  parent_id?: string;
+  title: string;
+  content?: string;
+  status: TaskStatus;
+  position: number;
+  due_date?: string;
+  completed_at?: string;
+  metadata: {
+    priority?: TaskPriority;
+    tags?: string[];
+    estimated_time?: number;
+    time_spent?: number;
+  };
+  created_at: string;
+  updated_at: string;
+  children?: Task[];
+}
 
 export interface CreateTaskDto {
-  folderId: string;
   title: string;
-  description?: string;
+  content?: string;
   status?: TaskStatus;
-  priority?: TaskPriority;
-  dueDate?: string;
-  reminderAt?: string;
-  tags?: string[];
-  estimatedTime?: number;
+  due_date?: string;
+  metadata?: {
+    priority?: TaskPriority;
+    tags?: string[];
+    estimated_time?: number;
+  };
 }
 
 export interface UpdateTaskDto {
   title?: string;
-  description?: string;
+  content?: string;
   status?: TaskStatus;
-  priority?: TaskPriority;
-  dueDate?: string | null;
-  reminderAt?: string | null;
-  tags?: string[];
-  estimatedTime?: number | null;
+  due_date?: string | null;
+  metadata?: {
+    priority?: TaskPriority;
+    tags?: string[];
+    estimated_time?: number | null;
+    time_spent?: number;
+  };
 }
 
 export interface TaskFilters {
-  folderId?: string;
   status?: TaskStatus;
-  priority?: TaskPriority;
-  search?: string;
-  tags?: string[];
-  dueDateFrom?: string;
-  dueDateTo?: string;
+  due_before?: string;
+  due_after?: string;
 }
 
 export const tasksApi = {
-  async getAll(filters: TaskFilters = {}, page: number = 1, limit: number = 50) {
+  // Get tasks in a board (items with task-like behavior)
+  async getByBoard(boardId: string, filters: TaskFilters = {}) {
     const params = new URLSearchParams();
-    params.append('page', page.toString());
-    params.append('limit', limit.toString());
-
-    if (filters.folderId) params.append('folderId', filters.folderId);
     if (filters.status) params.append('status', filters.status);
-    if (filters.priority) params.append('priority', filters.priority);
-    if (filters.search) params.append('search', filters.search);
-    if (filters.tags?.length) params.append('tags', filters.tags.join(','));
-    if (filters.dueDateFrom) params.append('dueDateFrom', filters.dueDateFrom);
-    if (filters.dueDateTo) params.append('dueDateTo', filters.dueDateTo);
+    if (filters.due_before) params.append('due_before', filters.due_before);
+    if (filters.due_after) params.append('due_after', filters.due_after);
 
-    return apiClient.get<PaginatedResponse<Task>>(`/tasks?${params.toString()}`);
+    const query = params.toString();
+    const url = `/boards/${boardId}/items${query ? `?${query}` : ''}`;
+    return apiClient.get<Task[]>(url);
   },
 
+  // Get single task
   async getById(id: string) {
-    return apiClient.get<Task>(`/tasks/${id}`);
+    return apiClient.get<Task>(`/items/${id}`);
   },
 
-  async create(data: CreateTaskDto) {
-    return apiClient.post<Task>('/tasks', data);
+  // Create task in a board
+  async create(boardId: string, data: CreateTaskDto) {
+    return apiClient.post<Task>(`/boards/${boardId}/items`, data);
   },
 
+  // Update task
   async update(id: string, data: UpdateTaskDto) {
-    return apiClient.patch<Task>(`/tasks/${id}`, data);
+    return apiClient.put<Task>(`/items/${id}`, data);
   },
 
+  // Delete task
   async delete(id: string) {
-    return apiClient.delete<void>(`/tasks/${id}`);
+    return apiClient.delete<void>(`/items/${id}`);
   },
 
+  // Update task status
   async updateStatus(id: string, status: TaskStatus) {
-    return apiClient.patch<Task>(`/tasks/${id}/status`, { status });
+    return apiClient.put<Task>(`/items/${id}`, { status });
   },
 
-  async addSubtask(taskId: string, title: string) {
-    return apiClient.post<Subtask>(`/tasks/${taskId}/subtasks`, { title });
+  // Complete/uncomplete task
+  async complete(id: string, completed: boolean) {
+    return apiClient.put<Task>(`/items/${id}/complete`, { completed });
   },
 
-  async updateSubtask(taskId: string, subtaskId: string, completed: boolean) {
-    return apiClient.patch<Subtask>(`/tasks/${taskId}/subtasks/${subtaskId}`, { completed });
+  // Set reminder for task
+  async setReminder(id: string, remindAt: string, message?: string) {
+    return apiClient.post<void>(`/items/${id}/reminder`, {
+      remind_at: remindAt,
+      message
+    });
   },
 
-  async deleteSubtask(taskId: string, subtaskId: string) {
-    return apiClient.delete<void>(`/tasks/${taskId}/subtasks/${subtaskId}`);
-  },
-
+  // Timer operations (stored in metadata)
   async startTimer(id: string) {
-    return apiClient.post<Task>(`/tasks/${id}/timer/start`);
+    return apiClient.put<Task>(`/items/${id}`, {
+      metadata: { timer_started: new Date().toISOString() }
+    });
   },
 
   async stopTimer(id: string) {
-    return apiClient.post<Task>(`/tasks/${id}/timer/stop`);
+    // Get current task to calculate time spent
+    const task = await apiClient.get<Task>(`/items/${id}`);
+    const timerStarted = task.metadata?.timer_started as string | undefined;
+
+    if (timerStarted) {
+      const elapsed = Math.floor((Date.now() - new Date(timerStarted).getTime()) / 1000);
+      const currentSpent = (task.metadata?.time_spent as number) || 0;
+
+      return apiClient.put<Task>(`/items/${id}`, {
+        metadata: {
+          ...task.metadata,
+          timer_started: null,
+          time_spent: currentSpent + elapsed
+        }
+      });
+    }
+
+    return task;
   },
 
-  async bulkUpdate(taskIds: string[], data: UpdateTaskDto) {
-    return apiClient.post<Task[]>('/tasks/bulk-update', { taskIds, ...data });
-  },
-
-  async bulkDelete(taskIds: string[]) {
-    return apiClient.post<void>('/tasks/bulk-delete', { taskIds });
+  // Reorder tasks in board
+  async reorder(boardId: string, itemIds: string[]) {
+    return apiClient.put<void>(`/boards/${boardId}/items/reorder`, { item_ids: itemIds });
   },
 };
 
