@@ -12,6 +12,7 @@ import {
   startOfWeek,
   endOfWeek,
   isToday,
+  parseISO,
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { PageHeader } from '@/components/layout';
@@ -76,9 +77,13 @@ const Calendar = () => {
   // Get events for a specific day
   const getEventsForDay = (day: Date) => {
     return events.filter((event) => {
-      const eventDate = event.metadata?.start_date || event.due_date;
-      if (!eventDate) return false;
-      return isSameDay(new Date(eventDate), day);
+      const eventDateStr = event.metadata?.start_date || event.due_date;
+      if (!eventDateStr) return false;
+      // Use parseISO to safely parse ISO date strings (avoids UTC timezone issues)
+      const eventDate = typeof eventDateStr === 'string' && eventDateStr.includes('T')
+        ? parseISO(eventDateStr)
+        : new Date(eventDateStr + 'T12:00:00'); // Add noon time to avoid date shift
+      return isSameDay(eventDate, day);
     });
   };
 

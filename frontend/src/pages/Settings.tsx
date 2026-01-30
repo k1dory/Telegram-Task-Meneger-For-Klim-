@@ -50,10 +50,10 @@ const Settings = () => {
       .map((h) => `${String(h).padStart(2, '0')}:00`)
       .join(', ');
 
-  const saveSettings = async (next: {
-    notification_enabled: boolean;
-    reminder_hours: number[];
-  }) => {
+  const saveSettings = async (
+    next: { notification_enabled: boolean; reminder_hours: number[] },
+    rollback: () => void
+  ) => {
     if (!user) return;
     setIsSaving(true);
     try {
@@ -63,29 +63,34 @@ const Settings = () => {
         language_code: user.language_code,
       });
       updateUserSettings(next);
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      rollback(); // Rollback on error
     } finally {
       setIsSaving(false);
     }
   };
 
   const toggleNotifications = () => {
-    const next = !notificationsEnabled;
+    const prev = notificationsEnabled;
+    const next = !prev;
     setNotificationsEnabled(next);
-    saveSettings({
-      notification_enabled: next,
-      reminder_hours: reminderHours,
-    });
+    saveSettings(
+      { notification_enabled: next, reminder_hours: reminderHours },
+      () => setNotificationsEnabled(prev) // Rollback function
+    );
   };
 
   const toggleReminderHour = (hour: number) => {
+    const prev = [...reminderHours];
     const next = reminderHours.includes(hour)
       ? reminderHours.filter((h) => h !== hour)
       : [...reminderHours, hour];
     setReminderHours(next);
-    saveSettings({
-      notification_enabled: notificationsEnabled,
-      reminder_hours: next,
-    });
+    saveSettings(
+      { notification_enabled: notificationsEnabled, reminder_hours: next },
+      () => setReminderHours(prev) // Rollback function
+    );
   };
 
   const SettingItem = ({

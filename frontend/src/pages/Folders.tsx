@@ -2,22 +2,15 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PageHeader } from '@/components/layout';
-import { Card, Button, Input, Progress, Modal, ColorPicker } from '@/components/ui';
+import { Card, Button, Input, Progress } from '@/components/ui';
 import { useFoldersStore, useAppStore } from '@/store';
-import { cn, boardTypeLabels } from '@/utils';
+import { boardTypeLabels } from '@/utils';
 import type { BoardType } from '@/types';
 
-const folderIcons = ['📁', '💼', '🎯', '📚', '💡', '🚀', '⭐', '🔥', '💪', '🎨', '📝', '✅'];
-
 const Folders = () => {
-  const { folders, fetchFolders, createFolder, deleteFolder, isLoading } = useFoldersStore();
-  const { openModal, closeModal, activeModal, modalData } = useAppStore();
+  const { folders, fetchFolders, isLoading } = useFoldersStore();
+  const { openModal } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
-  const [newFolder, setNewFolder] = useState({
-    name: '',
-    color: '#8b5cf6',
-    icon: '📁',
-  });
 
   useEffect(() => {
     fetchFolders();
@@ -26,22 +19,6 @@ const Folders = () => {
   const filteredFolders = folders.filter((folder) =>
     folder.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const handleCreateFolder = async () => {
-    if (!newFolder.name.trim()) return;
-
-    try {
-      await createFolder(newFolder);
-      closeModal();
-      setNewFolder({
-        name: '',
-        color: '#8b5cf6',
-        icon: '📁',
-      });
-    } catch (error) {
-      console.error('Failed to create folder:', error);
-    }
-  };
 
   const FolderCard = ({ folder }: { folder: typeof folders[0] }) => {
     const boardTypes = folder.boards?.map(b => b.type as BoardType) || [];
@@ -173,61 +150,6 @@ const Folders = () => {
         </div>
       )}
 
-      {/* Create Folder Modal */}
-      <Modal
-        isOpen={activeModal === 'createFolder'}
-        onClose={closeModal}
-        title="Новая папка"
-        footer={
-          <>
-            <Button variant="ghost" onClick={closeModal}>
-              Отмена
-            </Button>
-            <Button onClick={handleCreateFolder} disabled={!newFolder.name.trim()}>
-              Создать
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          {/* Icon Selection */}
-          <div>
-            <label className="block text-sm font-medium text-dark-200 mb-2">Иконка</label>
-            <div className="flex flex-wrap gap-2">
-              {folderIcons.map((icon) => (
-                <button
-                  key={icon}
-                  type="button"
-                  onClick={() => setNewFolder((prev) => ({ ...prev, icon }))}
-                  className={cn(
-                    'w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all',
-                    newFolder.icon === icon
-                      ? 'bg-primary-500/20 ring-2 ring-primary-500'
-                      : 'bg-dark-700 hover:bg-dark-600'
-                  )}
-                >
-                  {icon}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Name */}
-          <Input
-            label="Название"
-            placeholder="Введите название папки"
-            value={newFolder.name}
-            onChange={(e) => setNewFolder((prev) => ({ ...prev, name: e.target.value }))}
-          />
-
-          {/* Color */}
-          <ColorPicker
-            label="Цвет"
-            value={newFolder.color}
-            onChange={(color) => setNewFolder((prev) => ({ ...prev, color }))}
-          />
-        </div>
-      </Modal>
     </motion.div>
   );
 };

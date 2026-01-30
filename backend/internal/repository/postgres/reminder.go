@@ -89,7 +89,10 @@ func (r *ReminderRepository) GetPending(ctx context.Context, before time.Time) (
 		       i.id, i.board_id, i.title, i.content, i.status, i.due_date
 		FROM reminders r
 		JOIN items i ON r.item_id = i.id
-		WHERE r.sent = false AND r.remind_at <= $1
+		JOIN users u ON r.user_id = u.id
+		WHERE r.sent = false
+		  AND r.remind_at <= $1
+		  AND u.notification_enabled = true
 		ORDER BY r.remind_at ASC
 	`
 

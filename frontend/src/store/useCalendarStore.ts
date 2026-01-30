@@ -40,18 +40,21 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   viewMode: 'month',
 
   fetchEvents: async (boardId: string) => {
-    const { currentMonth } = get();
+    const { currentMonth, events: existingEvents } = get();
     const startDate = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
     const endDate = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
 
     set({ isLoading: true, error: null, currentBoardId: boardId });
 
     try {
-      const events = await itemsApi.getByBoard(boardId, {
+      const newEvents = await itemsApi.getByBoard(boardId, {
         due_after: startDate,
         due_before: endDate,
       });
-      set({ events, isLoading: false });
+      // Merge events: keep existing from other boards, add new ones from this board
+      const existingFromOtherBoards = existingEvents.filter(e => e.board_id !== boardId);
+      const mergedEvents = [...existingFromOtherBoards, ...newEvents];
+      set({ events: mergedEvents, isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch events',
@@ -133,7 +136,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   setViewMode: (viewMode) => set({ viewMode }),
 
   nextMonth: () => {
-    set((state) => ({ currentMonth: addMonths(state.currentMonth, 1) }));
+    set((state) => ({ currentMonth: addMonths(state.currentMonth, 1), events: [] }));
     const { currentBoardId } = get();
     if (currentBoardId) {
       get().fetchEvents(currentBoardId);
@@ -141,7 +144,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   },
 
   prevMonth: () => {
-    set((state) => ({ currentMonth: subMonths(state.currentMonth, 1) }));
+    set((state) => ({ currentMonth: subMonths(state.currentMonth, 1), events: [] }));
     const { currentBoardId } = get();
     if (currentBoardId) {
       get().fetchEvents(currentBoardId);

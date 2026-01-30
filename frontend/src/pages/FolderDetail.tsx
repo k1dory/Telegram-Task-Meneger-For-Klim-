@@ -53,8 +53,8 @@ const FolderDetail = () => {
     }
   }, [activeBoard, setLastActiveBoardId]);
 
-  const handleBoardChange = (boardType: string) => {
-    const board = currentFolder?.boards?.find(b => b.type === boardType);
+  const handleBoardChange = (boardId: string) => {
+    const board = currentFolder?.boards?.find(b => b.id === boardId);
     if (board) {
       setActiveBoard(board);
     }
@@ -143,20 +143,20 @@ const FolderDetail = () => {
       {/* Board Tabs */}
       {boards.length > 1 ? (
         <Tabs
-          defaultValue={activeBoard?.type || boards[0]?.type}
-          value={activeBoard?.type}
+          defaultValue={activeBoard?.id || boards[0]?.id}
+          value={activeBoard?.id}
           onValueChange={handleBoardChange}
         >
           <TabsList className="overflow-x-auto">
             {boards.map((board) => (
-              <TabsTrigger key={board.id} value={board.type}>
-                {boardTypeLabels[board.type as BoardType] || board.name}
+              <TabsTrigger key={board.id} value={board.id}>
+                {board.name || boardTypeLabels[board.type as BoardType]}
               </TabsTrigger>
             ))}
           </TabsList>
 
           {boards.map((board) => (
-            <TabsContent key={board.id} value={board.type} className="mt-4">
+            <TabsContent key={board.id} value={board.id} className="mt-4">
               {boardComponents[board.type as BoardType] && (
                 <div>
                   {React.createElement(boardComponents[board.type as BoardType], { boardId: board.id })}

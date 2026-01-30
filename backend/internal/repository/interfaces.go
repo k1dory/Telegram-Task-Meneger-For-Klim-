@@ -15,6 +15,7 @@ type UserRepository interface {
 	UpdateSettings(ctx context.Context, userID int64, settings *domain.UserSettings) error
 	UpdateLastActive(ctx context.Context, userID int64) error
 	GetInactiveUsers(ctx context.Context, since time.Time) ([]domain.InactiveUser, error)
+	GetUsersForReminderHour(ctx context.Context, hour int) ([]domain.User, error)
 }
 
 type FolderRepository interface {

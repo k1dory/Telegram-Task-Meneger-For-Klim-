@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"log/slog"
-	"math/rand"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -13,13 +12,12 @@ import (
 )
 
 type ReminderScheduler struct {
-	cron              *cron.Cron
-	notificationSvc   *service.NotificationService
-	userRepo          repository.UserRepository
-	itemRepo          repository.ItemRepository
-	reminderRepo      repository.ReminderRepository
-	logger            *slog.Logger
-	inactivityHours   []int // Hours of inactivity before sending reminder
+	cron            *cron.Cron
+	notificationSvc *service.NotificationService
+	userRepo        repository.UserRepository
+	itemRepo        repository.ItemRepository
+	reminderRepo    repository.ReminderRepository
+	logger          *slog.Logger
 }
 
 func NewReminderScheduler(
@@ -36,7 +34,6 @@ func NewReminderScheduler(
 		itemRepo:        itemRepo,
 		reminderRepo:    reminderRepo,
 		logger:          logger,
-		inactivityHours: []int{6, 8, 12}, // Random interval selection
 	}
 }
 
@@ -106,45 +103,45 @@ func (s *ReminderScheduler) checkReminders() {
 	}
 }
 
-// checkInactiveUsers sends reminders to inactive users
+// checkInactiveUsers sends reminders to inactive users based on their reminder_hours settings
 func (s *ReminderScheduler) checkInactiveUsers() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	s.logger.Debug("checking inactive users")
 
-	// Pick a random inactivity threshold
-	hoursThreshold := s.inactivityHours[rand.Intn(len(s.inactivityHours))]
-	since := time.Now().Add(-time.Duration(hoursThreshold) * time.Hour)
+	currentHour := time.Now().Hour()
 
-	inactiveUsers, err := s.userRepo.GetInactiveUsers(ctx, since)
+	// Get users who have notifications enabled AND current hour is in their reminder_hours
+	usersToNotify, err := s.userRepo.GetUsersForReminderHour(ctx, currentHour)
 	if err != nil {
-		s.logger.Error("failed to get inactive users", "error", err)
+		s.logger.Error("failed to get users for reminder hour", "error", err, "hour", currentHour)
 		return
 	}
 
-	s.logger.Info("found inactive users",
-		"count", len(inactiveUsers),
-		"threshold_hours", hoursThreshold,
+	s.logger.Info("found users for reminder",
+		"count", len(usersToNotify),
+		"hour", currentHour,
 	)
 
-	// Limit notifications to avoid spam
-	maxNotifications := 50
+	// Filter to only users who have been inactive for at least 6 hours
+	since := time.Now().Add(-6 * time.Hour)
 	sent := 0
+	maxNotifications := 50
 
-	for _, user := range inactiveUsers {
+	for _, user := range usersToNotify {
 		if sent >= maxNotifications {
 			break
 		}
 
-		// Additional randomization - only notify ~30% of inactive users per check
-		if rand.Float32() > 0.3 {
+		// Check if user is actually inactive
+		if user.LastActiveAt != nil && user.LastActiveAt.After(since) {
 			continue
 		}
 
-		if err := s.notificationSvc.SendInactivityReminder(ctx, user.UserID); err != nil {
+		if err := s.notificationSvc.SendInactivityReminder(ctx, user.TelegramID); err != nil {
 			s.logger.Error("failed to send inactivity reminder",
-				"user_id", user.UserID,
+				"user_id", user.TelegramID,
 				"error", err,
 			)
 			continue

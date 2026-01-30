@@ -87,6 +87,7 @@ func (r *FolderRepository) GetByIDWithBoards(ctx context.Context, id uuid.UUID) 
 }
 
 func (r *FolderRepository) GetByUserID(ctx context.Context, userID int64) ([]domain.Folder, error) {
+	// First get all folders
 	query := `
 		SELECT id, user_id, name, color, icon, position, created_at, updated_at
 		FROM folders
@@ -101,6 +102,8 @@ func (r *FolderRepository) GetByUserID(ctx context.Context, userID int64) ([]dom
 	defer rows.Close()
 
 	var folders []domain.Folder
+	folderIDs := make([]uuid.UUID, 0)
+
 	for rows.Next() {
 		var folder domain.Folder
 		if err := rows.Scan(
@@ -115,10 +118,60 @@ func (r *FolderRepository) GetByUserID(ctx context.Context, userID int64) ([]dom
 		); err != nil {
 			return nil, err
 		}
+		folder.Boards = []domain.Board{} // Initialize empty boards slice
 		folders = append(folders, folder)
+		folderIDs = append(folderIDs, folder.ID)
 	}
 
-	return folders, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(folderIDs) == 0 {
+		return folders, nil
+	}
+
+	// Get all boards for these folders
+	boardQuery := `
+		SELECT id, folder_id, name, type, settings, position, created_at, updated_at
+		FROM boards
+		WHERE folder_id = ANY($1)
+		ORDER BY position ASC
+	`
+
+	boardRows, err := r.db.Query(ctx, boardQuery, folderIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer boardRows.Close()
+
+	// Create a map for quick folder lookup
+	folderMap := make(map[uuid.UUID]int)
+	for i := range folders {
+		folderMap[folders[i].ID] = i
+	}
+
+	for boardRows.Next() {
+		var board domain.Board
+		if err := boardRows.Scan(
+			&board.ID,
+			&board.FolderID,
+			&board.Name,
+			&board.Type,
+			&board.Settings,
+			&board.Position,
+			&board.CreatedAt,
+			&board.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		if idx, ok := folderMap[board.FolderID]; ok {
+			folders[idx].Boards = append(folders[idx].Boards, board)
+		}
+	}
+
+	return folders, boardRows.Err()
 }
 
 func (r *FolderRepository) Create(ctx context.Context, folder *domain.Folder) error {

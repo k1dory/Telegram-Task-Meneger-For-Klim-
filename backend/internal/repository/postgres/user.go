@@ -186,3 +186,43 @@ func (r *UserRepository) GetInactiveUsers(ctx context.Context, since time.Time) 
 
 	return users, rows.Err()
 }
+
+// GetUsersForReminderHour returns users who have notifications enabled and the given hour in their reminder_hours
+func (r *UserRepository) GetUsersForReminderHour(ctx context.Context, hour int) ([]domain.User, error) {
+	query := `
+		SELECT id, username, first_name, last_name, language_code,
+		       notification_enabled, reminder_hours, last_active_at, created_at, updated_at
+		FROM users
+		WHERE notification_enabled = true
+		  AND $1 = ANY(reminder_hours)
+	`
+
+	rows, err := r.db.Query(ctx, query, hour)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []domain.User
+	for rows.Next() {
+		var user domain.User
+		if err := rows.Scan(
+			&user.ID,
+			&user.Username,
+			&user.FirstName,
+			&user.LastName,
+			&user.LanguageCode,
+			&user.NotificationEnabled,
+			&user.ReminderHours,
+			&user.LastActiveAt,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		user.TelegramID = user.ID
+		users = append(users, user)
+	}
+
+	return users, rows.Err()
+}
