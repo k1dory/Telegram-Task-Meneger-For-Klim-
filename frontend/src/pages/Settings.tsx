@@ -255,15 +255,15 @@ const Settings = () => {
               onClick={toggleNotifications}
               disabled={isSaving}
               className={cn(
-                'w-12 h-6 rounded-full relative transition-colors',
+                'w-11 h-6 rounded-full relative transition-colors flex-shrink-0',
                 notificationsEnabled ? 'bg-primary-500' : 'bg-dark-600',
                 isSaving && 'opacity-60 cursor-not-allowed'
               )}
             >
               <span
                 className={cn(
-                  'absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform',
-                  notificationsEnabled ? 'translate-x-7' : 'translate-x-1'
+                  'absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform',
+                  notificationsEnabled ? 'translate-x-5' : 'translate-x-0'
                 )}
               />
             </button>

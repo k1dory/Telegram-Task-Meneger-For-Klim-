@@ -40,7 +40,7 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
         whileHover={interactive ? { scale: 1.02 } : undefined}
         whileTap={interactive ? { scale: 0.98 } : undefined}
         className={cn(
-          'rounded-2xl',
+          'rounded-2xl overflow-visible',
           variants[variant],
           paddings[padding],
           interactive && 'cursor-pointer transition-all duration-200',
