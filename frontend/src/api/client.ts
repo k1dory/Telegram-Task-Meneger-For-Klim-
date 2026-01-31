@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
+import axios, { AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import type { User } from '@/types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
@@ -9,11 +9,34 @@ interface AuthResponse {
   user: User;
 }
 
-// Token stored in memory for immediate access
-let currentToken: string | null = localStorage.getItem(TOKEN_KEY);
+// Token storage - both in memory and localStorage
+let memoryToken: string | null = null;
+
+// Get token from memory or localStorage
+function getToken(): string | null {
+  if (memoryToken) return memoryToken;
+  const stored = localStorage.getItem(TOKEN_KEY);
+  if (stored) {
+    memoryToken = stored;
+    return stored;
+  }
+  return null;
+}
+
+// Set token in both memory and localStorage
+function setToken(token: string): void {
+  memoryToken = token;
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+// Clear token
+function clearToken(): void {
+  memoryToken = null;
+  localStorage.removeItem(TOKEN_KEY);
+}
 
 // Create axios instance
-const client = axios.create({
+const axiosInstance = axios.create({
   baseURL: BASE_URL,
   timeout: 30000,
   headers: {
@@ -21,94 +44,130 @@ const client = axios.create({
   },
 });
 
-// Request interceptor - ALWAYS add token from memory
-client.interceptors.request.use(
-  (config) => {
-    if (currentToken) {
-      config.headers.Authorization = `Bearer ${currentToken}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Response interceptor for error handling
-client.interceptors.response.use(
-  (response: AxiosResponse) => response,
-  (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      // Don't clear token on 401 - might be a timing issue
-      console.warn('401 Unauthorized');
-    }
-
-    if (error.response?.data) {
-      const data = error.response.data as { message?: string; error?: string };
-      return Promise.reject(new Error(data.message || data.error || 'An error occurred'));
-    }
-    if (error.request) {
-      return Promise.reject(new Error('Network error'));
-    }
-    return Promise.reject(new Error(error.message || 'Unknown error'));
+// Helper to get headers with auth
+function getAuthHeaders(): Record<string, string> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
-);
+  return headers;
+}
 
-// API functions
+// Response error handler
+function handleError(error: AxiosError): never {
+  if (error.response?.status === 401) {
+    console.warn('401 Unauthorized');
+  }
+
+  if (error.response?.data) {
+    const data = error.response.data as { message?: string; error?: string };
+    throw new Error(data.message || data.error || 'An error occurred');
+  }
+  if (error.request) {
+    throw new Error('Network error');
+  }
+  throw new Error(error.message || 'Unknown error');
+}
+
+// API functions with explicit headers
 export const apiClient = {
   async authenticate(initData: string): Promise<AuthResponse> {
-    const response = await client.post<AuthResponse>('/auth/telegram', {
-      init_data: initData,
-    });
+    try {
+      const response = await axiosInstance.post<AuthResponse>('/auth/telegram', {
+        init_data: initData,
+      });
 
-    const token = response.data.token;
+      // Save token
+      setToken(response.data.token);
 
-    // Save token to memory AND localStorage
-    currentToken = token;
-    localStorage.setItem(TOKEN_KEY, token);
-
-    return response.data;
+      return response.data;
+    } catch (error) {
+      throw handleError(error as AxiosError);
+    }
   },
 
   isAuthenticated(): boolean {
-    return !!currentToken;
+    return !!getToken();
   },
 
-  getToken(): string | null {
-    return currentToken;
-  },
+  getToken,
 
   logout(): void {
-    currentToken = null;
-    localStorage.removeItem(TOKEN_KEY);
+    clearToken();
   },
 
   async getCurrentUser(): Promise<User> {
-    const response = await client.get<User>('/auth/me');
-    return response.data;
+    try {
+      const response = await axiosInstance.get<User>('/auth/me', {
+        headers: getAuthHeaders(),
+      });
+      return response.data;
+    } catch (error) {
+      throw handleError(error as AxiosError);
+    }
   },
 
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response = await client.get<T>(url, config);
-    return response.data;
+    try {
+      const response = await axiosInstance.get<T>(url, {
+        ...config,
+        headers: { ...getAuthHeaders(), ...config?.headers },
+      });
+      return response.data;
+    } catch (error) {
+      throw handleError(error as AxiosError);
+    }
   },
 
   async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    const response = await client.post<T>(url, data, config);
-    return response.data;
+    try {
+      const response = await axiosInstance.post<T>(url, data, {
+        ...config,
+        headers: { ...getAuthHeaders(), ...config?.headers },
+      });
+      return response.data;
+    } catch (error) {
+      throw handleError(error as AxiosError);
+    }
   },
 
   async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    const response = await client.put<T>(url, data, config);
-    return response.data;
+    try {
+      const response = await axiosInstance.put<T>(url, data, {
+        ...config,
+        headers: { ...getAuthHeaders(), ...config?.headers },
+      });
+      return response.data;
+    } catch (error) {
+      throw handleError(error as AxiosError);
+    }
   },
 
   async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    const response = await client.patch<T>(url, data, config);
-    return response.data;
+    try {
+      const response = await axiosInstance.patch<T>(url, data, {
+        ...config,
+        headers: { ...getAuthHeaders(), ...config?.headers },
+      });
+      return response.data;
+    } catch (error) {
+      throw handleError(error as AxiosError);
+    }
   },
 
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response = await client.delete<T>(url, config);
-    return response.data;
+    try {
+      const response = await axiosInstance.delete<T>(url, {
+        ...config,
+        headers: { ...getAuthHeaders(), ...config?.headers },
+      });
+      return response.data;
+    } catch (error) {
+      throw handleError(error as AxiosError);
+    }
   },
 };
 
