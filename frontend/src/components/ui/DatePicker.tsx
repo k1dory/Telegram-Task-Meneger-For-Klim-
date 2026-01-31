@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -29,6 +29,9 @@ interface DatePickerProps {
   clearable?: boolean;
 }
 
+const CALENDAR_WIDTH = 320;
+const CALENDAR_HEIGHT = 380;
+
 const DatePicker = ({
   label,
   value,
@@ -42,7 +45,7 @@ const DatePicker = ({
 }: DatePickerProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(value || new Date());
-  const [calendarStyle, setCalendarStyle] = useState<React.CSSProperties>({});
+  const [position, setPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
 
@@ -68,56 +71,67 @@ const DatePicker = ({
   };
 
   // Calculate calendar position
-  const updateCalendarPosition = useCallback(() => {
+  const updatePosition = useCallback(() => {
     if (!buttonRef.current) return;
 
     const rect = buttonRef.current.getBoundingClientRect();
-    const calendarHeight = 380; // Approximate calendar height
-    const calendarWidth = Math.max(rect.width, 300); // Min width 300px
-    const spaceBelow = window.innerHeight - rect.bottom - 8;
-    const spaceAbove = rect.top - 8;
-    const openUpward = spaceBelow < calendarHeight && spaceAbove > calendarHeight;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
 
-    // Center horizontally if wider than button
-    let left = rect.left;
-    if (calendarWidth > rect.width) {
-      left = rect.left - (calendarWidth - rect.width) / 2;
-    }
+    // Calculate horizontal position - center below button or fit in viewport
+    let left = rect.left + (rect.width / 2) - (CALENDAR_WIDTH / 2);
     // Keep within viewport
-    left = Math.max(8, Math.min(left, window.innerWidth - calendarWidth - 8));
+    left = Math.max(8, Math.min(left, viewportWidth - CALENDAR_WIDTH - 8));
 
-    setCalendarStyle({
-      position: 'fixed',
-      left,
-      width: calendarWidth,
-      top: openUpward ? rect.top - calendarHeight - 8 : rect.bottom + 8,
-      zIndex: 9999,
-    });
+    // Calculate vertical position
+    const spaceBelow = viewportHeight - rect.bottom - 16;
+    const spaceAbove = rect.top - 16;
+
+    let top: number;
+    if (spaceBelow >= CALENDAR_HEIGHT) {
+      top = rect.bottom + 8;
+    } else if (spaceAbove >= CALENDAR_HEIGHT) {
+      top = rect.top - CALENDAR_HEIGHT - 8;
+    } else {
+      // Center in viewport if not enough space
+      top = Math.max(8, (viewportHeight - CALENDAR_HEIGHT) / 2);
+    }
+
+    setPosition({ top, left });
   }, []);
 
-  // Update position when open
-  useEffect(() => {
+  // Update position when opening
+  useLayoutEffect(() => {
     if (isOpen) {
-      updateCalendarPosition();
-      window.addEventListener('scroll', updateCalendarPosition, true);
-      window.addEventListener('resize', updateCalendarPosition);
-      return () => {
-        window.removeEventListener('scroll', updateCalendarPosition, true);
-        window.removeEventListener('resize', updateCalendarPosition);
-      };
+      updatePosition();
     }
-  }, [isOpen, updateCalendarPosition]);
+  }, [isOpen, updatePosition]);
+
+  // Update position on scroll/resize and month change
+  useEffect(() => {
+    if (!isOpen) return;
+
+    updatePosition();
+
+    const handleUpdate = () => updatePosition();
+    window.addEventListener('scroll', handleUpdate, true);
+    window.addEventListener('resize', handleUpdate);
+
+    return () => {
+      window.removeEventListener('scroll', handleUpdate, true);
+      window.removeEventListener('resize', handleUpdate);
+    };
+  }, [isOpen, currentMonth, updatePosition]);
 
   // Close on click outside
   useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
       if (
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target as Node) &&
-        calendarRef.current &&
-        !calendarRef.current.contains(e.target as Node)
+        buttonRef.current && !buttonRef.current.contains(target) &&
+        calendarRef.current && !calendarRef.current.contains(target)
       ) {
         setIsOpen(false);
       }
@@ -125,6 +139,16 @@ const DatePicker = ({
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  // Close on escape
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen]);
 
   const calendar = (
@@ -136,10 +160,16 @@ const DatePicker = ({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.15 }}
-          style={calendarStyle}
+          style={{
+            position: 'fixed',
+            top: position.top,
+            left: position.left,
+            width: CALENDAR_WIDTH,
+            zIndex: 99999,
+          }}
           className={cn(
             'bg-dark-800 border border-dark-700 rounded-xl',
-            'shadow-2xl shadow-black/40 p-4'
+            'shadow-2xl shadow-black/50 p-4'
           )}
         >
           {/* Header */}
@@ -153,7 +183,7 @@ const DatePicker = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <span className="text-dark-50 font-medium">
+            <span className="text-dark-50 font-medium capitalize">
               {format(currentMonth, 'LLLL yyyy', { locale: ru })}
             </span>
             <button
@@ -194,7 +224,7 @@ const DatePicker = ({
                   onClick={() => handleSelect(day)}
                   disabled={isDisabledDate}
                   className={cn(
-                    'p-2 text-sm rounded-lg transition-colors',
+                    'w-9 h-9 text-sm rounded-lg transition-colors flex items-center justify-center',
                     !isCurrentMonth && 'text-dark-600',
                     isCurrentMonth && !isSelected && 'text-dark-200 hover:bg-dark-700',
                     isSelected && 'bg-primary-500 text-white',
@@ -271,7 +301,6 @@ const DatePicker = ({
           </div>
         </button>
 
-        {/* Render calendar in portal */}
         {createPortal(calendar, document.body)}
       </div>
       {error && <p className="text-sm text-red-400">{error}</p>}

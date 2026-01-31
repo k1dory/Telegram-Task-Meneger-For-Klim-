@@ -32,11 +32,9 @@ const Modal = ({
 
   const [viewportHeight, setViewportHeight] = useState('100vh');
 
-  // Handle virtual keyboard on mobile
   useEffect(() => {
     if (!isOpen) return;
 
-    // Prevent body scroll when modal is open
     document.body.style.overflow = 'hidden';
 
     const updateViewportHeight = () => {
@@ -85,21 +83,21 @@ const Modal = ({
             className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm"
           />
 
-          {/* Modal Container */}
+          {/* Modal Container - ALWAYS CENTERED */}
           <div
-            className="fixed inset-x-0 top-0 z-[100] flex items-end sm:items-center justify-center p-4"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
             style={{ height: viewportHeight }}
           >
             <motion.div
               ref={modalRef}
-              initial={{ opacity: 0, y: 100, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 100, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               className={cn(
-                'w-full bg-dark-800 rounded-t-3xl sm:rounded-2xl shadow-2xl',
+                'w-full bg-dark-800 rounded-2xl shadow-2xl',
                 'border border-dark-700 flex flex-col',
-                'max-h-[85vh] sm:max-h-[90vh]',
+                'max-h-[85vh]',
                 sizes[size]
               )}
             >

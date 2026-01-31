@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, ReactNode, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, ReactNode, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/utils';
@@ -32,56 +32,70 @@ const Select = ({
   fullWidth = true,
 }: SelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const selectedOption = options.find((opt) => opt.value === value);
 
-  // Calculate dropdown position
-  const updateDropdownPosition = useCallback(() => {
+  // Calculate dropdown position relative to button
+  const updatePosition = useCallback(() => {
     if (!buttonRef.current) return;
 
     const rect = buttonRef.current.getBoundingClientRect();
     const dropdownHeight = Math.min(options.length * 44 + 8, 248);
-    const spaceBelow = window.innerHeight - rect.bottom - 8;
-    const spaceAbove = rect.top - 8;
-    const openUpward = spaceBelow < dropdownHeight && spaceAbove > dropdownHeight;
+    const spaceBelow = window.innerHeight - rect.bottom - 16;
+    const spaceAbove = rect.top - 16;
 
-    setDropdownStyle({
-      position: 'fixed',
+    let top: number;
+    if (spaceBelow >= dropdownHeight) {
+      // Open below
+      top = rect.bottom + 8;
+    } else if (spaceAbove >= dropdownHeight) {
+      // Open above
+      top = rect.top - dropdownHeight - 8;
+    } else {
+      // Not enough space either way, open below with available space
+      top = rect.bottom + 8;
+    }
+
+    setPosition({
+      top,
       left: rect.left,
       width: rect.width,
-      top: openUpward ? rect.top - dropdownHeight - 8 : rect.bottom + 8,
-      maxHeight: openUpward ? spaceAbove : spaceBelow,
-      zIndex: 9999,
     });
   }, [options.length]);
 
-  // Update position when open
-  useEffect(() => {
+  // Update position immediately when opening and on changes
+  useLayoutEffect(() => {
     if (isOpen) {
-      updateDropdownPosition();
-      // Update on scroll/resize
-      window.addEventListener('scroll', updateDropdownPosition, true);
-      window.addEventListener('resize', updateDropdownPosition);
-      return () => {
-        window.removeEventListener('scroll', updateDropdownPosition, true);
-        window.removeEventListener('resize', updateDropdownPosition);
-      };
+      updatePosition();
     }
-  }, [isOpen, updateDropdownPosition]);
+  }, [isOpen, updatePosition]);
+
+  // Update position on scroll/resize
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleUpdate = () => updatePosition();
+    window.addEventListener('scroll', handleUpdate, true);
+    window.addEventListener('resize', handleUpdate);
+
+    return () => {
+      window.removeEventListener('scroll', handleUpdate, true);
+      window.removeEventListener('resize', handleUpdate);
+    };
+  }, [isOpen, updatePosition]);
 
   // Close on click outside
   useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
       if (
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target as Node) &&
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
+        buttonRef.current && !buttonRef.current.contains(target) &&
+        dropdownRef.current && !dropdownRef.current.contains(target)
       ) {
         setIsOpen(false);
       }
@@ -91,19 +105,35 @@ const Select = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
+  // Close on escape
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen]);
+
   const dropdown = (
     <AnimatePresence>
       {isOpen && (
         <motion.div
           ref={dropdownRef}
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
           transition={{ duration: 0.15 }}
-          style={dropdownStyle}
+          style={{
+            position: 'fixed',
+            top: position.top,
+            left: position.left,
+            width: position.width,
+            zIndex: 99999,
+          }}
           className={cn(
             'bg-dark-800 border border-dark-700/60 rounded-xl',
-            'shadow-2xl shadow-black/40 overflow-hidden'
+            'shadow-2xl shadow-black/50'
           )}
         >
           <div className="max-h-60 overflow-y-auto py-1">
@@ -208,7 +238,6 @@ const Select = ({
           </svg>
         </button>
 
-        {/* Render dropdown in portal */}
         {createPortal(dropdown, document.body)}
       </div>
       {error && <p className="text-sm text-red-400">{error}</p>}

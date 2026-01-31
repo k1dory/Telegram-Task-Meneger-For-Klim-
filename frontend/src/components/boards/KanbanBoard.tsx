@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
+  closestCenter,
   KeyboardSensor,
   PointerSensor,
   TouchSensor,
@@ -11,6 +11,8 @@ import {
   useSensors,
   DragStartEvent,
   DragEndEvent,
+  DragOverEvent,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -52,16 +54,27 @@ const SortableTaskCard = ({ task, onClick }: { task: Item; onClick: () => void }
   const priority = task.metadata?.priority || 'medium';
   const tags = task.metadata?.tags || [];
 
+  if (isDragging) {
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className="opacity-30"
+      >
+        <Card variant="bordered" padding="sm" className="bg-dark-900 border-dashed">
+          <div className="h-16" />
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      className={cn(
-        'cursor-grab active:cursor-grabbing touch-none',
-        isDragging && 'opacity-50'
-      )}
+      className="cursor-grab active:cursor-grabbing touch-none select-none"
     >
       <motion.div
         layout
@@ -123,8 +136,8 @@ const TaskCardOverlay = ({ task }: { task: Item }) => {
   const priority = task.metadata?.priority || 'medium';
 
   return (
-    <div className="w-[280px]">
-      <Card variant="bordered" padding="sm" className="bg-dark-900 shadow-2xl scale-105">
+    <div className="w-[260px] rotate-3">
+      <Card variant="bordered" padding="sm" className="bg-dark-800 shadow-2xl border-primary-500/50">
         <div className="flex items-start gap-2 mb-2">
           <div
             className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
@@ -143,24 +156,32 @@ const TaskCardOverlay = ({ task }: { task: Item }) => {
 };
 
 // Droppable Column
-const Column = ({
+const DroppableColumn = ({
   status,
   title,
   tasks,
   onAddTask,
   onTaskClick,
+  isOver,
 }: {
   status: ItemStatus;
   title: string;
   tasks: Item[];
   onAddTask: () => void;
   onTaskClick: (task: Item) => void;
+  isOver: boolean;
 }) => {
+  const { setNodeRef } = useDroppable({
+    id: status,
+  });
+
   return (
     <div
+      ref={setNodeRef}
       className={cn(
         'flex flex-col min-w-[280px] w-full lg:w-1/4',
-        'bg-dark-800/50 rounded-2xl p-3'
+        'bg-dark-800/50 rounded-2xl p-3 transition-all duration-200',
+        isOver && 'bg-primary-500/10 ring-2 ring-primary-500/50 scale-[1.02]'
       )}
     >
       {/* Column Header */}
@@ -199,8 +220,13 @@ const Column = ({
           </AnimatePresence>
 
           {tasks.length === 0 && (
-            <div className="flex items-center justify-center h-20 border-2 border-dashed border-dark-700 rounded-xl">
-              <p className="text-sm text-dark-500">Перетащите сюда</p>
+            <div className={cn(
+              "flex items-center justify-center h-20 border-2 border-dashed rounded-xl transition-colors",
+              isOver ? "border-primary-500 bg-primary-500/5" : "border-dark-700"
+            )}>
+              <p className="text-sm text-dark-500">
+                {isOver ? 'Отпустите здесь' : 'Перетащите сюда'}
+              </p>
             </div>
           )}
         </div>
@@ -213,18 +239,19 @@ const KanbanBoard = ({ boardId }: KanbanBoardProps) => {
   const { tasks, fetchTasks, completeTask, updateTask, isLoading } = useTasksStore();
   const { openModal } = useAppStore();
   const [activeTask, setActiveTask] = useState<Item | null>(null);
+  const [overColumn, setOverColumn] = useState<ItemStatus | null>(null);
 
   // Configure sensors for mouse, touch, and keyboard
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // 8px movement before drag starts
+        distance: 8,
       },
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 200, // 200ms press delay
-        tolerance: 5, // 5px movement tolerance
+        delay: 150,
+        tolerance: 8,
       },
     }),
     useSensor(KeyboardSensor)
@@ -245,9 +272,33 @@ const KanbanBoard = ({ boardId }: KanbanBoardProps) => {
     }
   };
 
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event;
+
+    if (!over) {
+      setOverColumn(null);
+      return;
+    }
+
+    // Check if over a column
+    const columnIds = columns.map(c => c.id);
+    if (columnIds.includes(over.id as ItemStatus)) {
+      setOverColumn(over.id as ItemStatus);
+      return;
+    }
+
+    // Check if over a task - find which column that task is in
+    const overTask = tasks.find(t => t.id === over.id);
+    if (overTask) {
+      setOverColumn(overTask.status);
+    }
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+
     setActiveTask(null);
+    setOverColumn(null);
 
     if (!over) return;
 
@@ -255,32 +306,40 @@ const KanbanBoard = ({ boardId }: KanbanBoardProps) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
 
-    // Determine target status from the over element
-    // The over.id could be a task id or we need to check data
+    // Determine target status
     let targetStatus: ItemStatus | null = null;
 
-    // Check if dropped over another task
-    const overTask = tasks.find((t) => t.id === over.id);
-    if (overTask) {
-      targetStatus = overTask.status;
+    // Check if dropped on a column directly
+    const columnIds = columns.map(c => c.id);
+    if (columnIds.includes(over.id as ItemStatus)) {
+      targetStatus = over.id as ItemStatus;
     } else {
-      // Check if dropped over a column (over.id might be the column id)
-      const isColumn = columns.some((c) => c.id === over.id);
-      if (isColumn) {
-        targetStatus = over.id as ItemStatus;
+      // Dropped on a task - get that task's status
+      const overTask = tasks.find(t => t.id === over.id);
+      if (overTask) {
+        targetStatus = overTask.status;
       }
     }
 
     if (targetStatus && task.status !== targetStatus) {
-      if (targetStatus === 'completed') {
-        await completeTask(task.id, true);
-      } else if (task.status === 'completed') {
-        await completeTask(task.id, false);
-        await updateTask(task.id, { status: targetStatus });
-      } else {
-        await updateTask(task.id, { status: targetStatus });
+      try {
+        if (targetStatus === 'completed') {
+          await completeTask(task.id, true);
+        } else if (task.status === 'completed') {
+          await completeTask(task.id, false);
+          await updateTask(task.id, { status: targetStatus });
+        } else {
+          await updateTask(task.id, { status: targetStatus });
+        }
+      } catch (error) {
+        console.error('Failed to update task:', error);
       }
     }
+  };
+
+  const handleDragCancel = () => {
+    setActiveTask(null);
+    setOverColumn(null);
   };
 
   if (isLoading) {
@@ -303,25 +362,31 @@ const KanbanBoard = ({ boardId }: KanbanBoardProps) => {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={closestCenter}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
       <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4">
         {columns.map((col) => (
-          <Column
+          <DroppableColumn
             key={col.id}
             status={col.id}
             title={col.title}
             tasks={getTasksByStatus(col.id)}
             onAddTask={() => openModal('createTask', { boardId, status: col.id })}
             onTaskClick={(task) => openModal('editTask', task)}
+            isOver={overColumn === col.id}
           />
         ))}
       </div>
 
-      {/* Drag Overlay - shows the dragged item */}
-      <DragOverlay>
+      {/* Drag Overlay */}
+      <DragOverlay dropAnimation={{
+        duration: 200,
+        easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+      }}>
         {activeTask ? <TaskCardOverlay task={activeTask} /> : null}
       </DragOverlay>
     </DndContext>
