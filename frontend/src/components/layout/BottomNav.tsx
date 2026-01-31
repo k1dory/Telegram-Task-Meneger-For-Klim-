@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '@/utils';
-import { useAppStore } from '@/store';
+import { useAppStore, useFoldersStore } from '@/store';
 
 const navItems = [
   {
@@ -76,12 +76,24 @@ const navItems = [
 
 const BottomNav = () => {
   const { openModal, lastActiveBoardId } = useAppStore();
+  const { folders } = useFoldersStore();
+
+  // Check if there are any boards that can have tasks
+  const hasTaskBoards = folders.some(folder =>
+    folder.boards?.some(b => ['kanban', 'checklist', 'time_manager'].includes(b.type))
+  );
 
   const handleCreateClick = () => {
     if (lastActiveBoardId) {
       openModal('createTask', { boardId: lastActiveBoardId });
-    } else {
+    } else if (hasTaskBoards) {
       openModal('selectBoardForCreate');
+    } else if (folders.length > 0) {
+      // Has folders but no task boards - go to folders to create board
+      openModal('selectBoardForCreate');
+    } else {
+      // No folders at all - create folder first
+      openModal('createFolder');
     }
   };
 

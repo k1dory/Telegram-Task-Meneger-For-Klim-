@@ -719,6 +719,7 @@ type TaskBoardOption = Board & { folderName: string; folderColor: string };
 
 // Select Board Modal (when no lastActiveBoardId)
 const SelectBoardModal = () => {
+  const navigate = useNavigate();
   const { activeModal, closeModal, openModal, setLastActiveBoardId } = useAppStore();
   const { folders, fetchFolders } = useFoldersStore();
   const isOpen = activeModal === 'selectBoardForCreate';
@@ -796,9 +797,26 @@ const SelectBoardModal = () => {
             ))}
           </div>
         ) : taskBoards.length === 0 ? (
-          <p className="text-dark-400 text-center py-4">
-            Нет досок для создания задач. Создайте папку с доской типа Kanban, Checklist или Time Manager.
-          </p>
+          <div className="text-center py-4">
+            <p className="text-dark-400 mb-4">
+              {folders.length === 0
+                ? 'Сначала создайте папку для организации задач.'
+                : 'Нет досок для создания задач. Откройте папку и создайте доску типа Kanban, Checklist или Time Manager.'}
+            </p>
+            <Button
+              onClick={() => {
+                closeModal();
+                if (folders.length === 0) {
+                  openModal('createFolder');
+                } else {
+                  // Navigate to first folder to create a board there
+                  navigate(`/folders/${folders[0].id}`);
+                }
+              }}
+            >
+              {folders.length === 0 ? 'Создать папку' : 'Открыть папку'}
+            </Button>
+          </div>
         ) : (
           taskBoards.map((board) => (
             <button
