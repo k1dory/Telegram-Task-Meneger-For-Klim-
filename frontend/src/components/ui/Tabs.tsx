@@ -53,6 +53,8 @@ const TabsList = ({ children, className }: TabsListProps) => {
     <div
       className={cn(
         'flex items-center gap-1 p-1 bg-dark-900 rounded-xl',
+        'overflow-x-auto scrollbar-hide',
+        '-mx-4 px-4', // Allow edge-to-edge scroll
         className
       )}
     >
@@ -80,7 +82,7 @@ const TabsTrigger = ({ value, children, className, disabled }: TabsTriggerProps)
       disabled={disabled}
       onClick={() => setActiveTab(value)}
       className={cn(
-        'relative flex-1 px-4 py-2 text-sm font-medium rounded-lg',
+        'relative px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap flex-shrink-0',
         'transition-colors duration-200',
         isActive ? 'text-dark-50' : 'text-dark-400 hover:text-dark-200',
         disabled && 'opacity-50 cursor-not-allowed',
@@ -111,15 +113,9 @@ const TabsContent = ({ value, children, className }: TabsContentProps) => {
   if (activeTab !== value) return null;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.2 }}
-      className={className}
-    >
+    <div className={className}>
       {children}
-    </motion.div>
+    </div>
   );
 };
 

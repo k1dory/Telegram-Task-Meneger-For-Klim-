@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext,
   DragOverlay,
   closestCenter,
-  KeyboardSensor,
   PointerSensor,
   TouchSensor,
   useSensor,
@@ -35,7 +33,67 @@ const columns: { id: ItemStatus; title: string }[] = [
   { id: 'completed', title: 'Выполнено' },
 ];
 
-// Sortable Task Card
+// Simple Task Card (no framer-motion to avoid conflicts)
+const TaskCard = ({ task, onClick, isDragging }: { task: Item; onClick: () => void; isDragging?: boolean }) => {
+  const priority = task.metadata?.priority || 'medium';
+  const tags = task.metadata?.tags || [];
+
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        "cursor-pointer transition-transform",
+        isDragging && "opacity-50"
+      )}
+    >
+      <Card variant="bordered" padding="sm" className="bg-dark-900">
+        <div className="flex items-start gap-2 mb-2">
+          <div
+            className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
+            style={{ backgroundColor: priorityColors[priority] }}
+          />
+          <h4 className="text-sm font-medium text-dark-100 line-clamp-2">{task.title}</h4>
+        </div>
+
+        {task.content && (
+          <p className="text-xs text-dark-500 line-clamp-2 mb-2 ml-4">
+            {task.content}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between ml-4">
+          <div className="flex items-center gap-2">
+            {task.due_date && (
+              <span className="text-xs text-dark-400 flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                {formatRelativeDate(task.due_date)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2 ml-4">
+            {tags.slice(0, 2).map((tag) => (
+              <Badge key={tag} variant="default" size="sm">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+};
+
+// Sortable wrapper
 const SortableTaskCard = ({ task, onClick }: { task: Item; onClick: () => void }) => {
   const {
     attributes,
@@ -49,24 +107,8 @@ const SortableTaskCard = ({ task, onClick }: { task: Item; onClick: () => void }
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+    opacity: isDragging ? 0.5 : 1,
   };
-
-  const priority = task.metadata?.priority || 'medium';
-  const tags = task.metadata?.tags || [];
-
-  if (isDragging) {
-    return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        className="opacity-30"
-      >
-        <Card variant="bordered" padding="sm" className="bg-dark-900 border-dashed">
-          <div className="h-16" />
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div
@@ -74,59 +116,9 @@ const SortableTaskCard = ({ task, onClick }: { task: Item; onClick: () => void }
       style={style}
       {...attributes}
       {...listeners}
-      className="cursor-grab active:cursor-grabbing touch-none select-none"
+      className="touch-none"
     >
-      <motion.div
-        layout
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9 }}
-        onClick={onClick}
-      >
-        <Card variant="bordered" padding="sm" className="bg-dark-900">
-          <div className="flex items-start gap-2 mb-2">
-            <div
-              className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
-              style={{ backgroundColor: priorityColors[priority] }}
-            />
-            <h4 className="text-sm font-medium text-dark-100 line-clamp-2">{task.title}</h4>
-          </div>
-
-          {task.content && (
-            <p className="text-xs text-dark-500 line-clamp-2 mb-2 ml-4">
-              {task.content}
-            </p>
-          )}
-
-          <div className="flex items-center justify-between ml-4">
-            <div className="flex items-center gap-2">
-              {task.due_date && (
-                <span className="text-xs text-dark-400 flex items-center gap-1">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                  {formatRelativeDate(task.due_date)}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2 ml-4">
-              {tags.slice(0, 2).map((tag) => (
-                <Badge key={tag} variant="default" size="sm">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </Card>
-      </motion.div>
+      <TaskCard task={task} onClick={onClick} isDragging={isDragging} />
     </div>
   );
 };
@@ -136,8 +128,8 @@ const TaskCardOverlay = ({ task }: { task: Item }) => {
   const priority = task.metadata?.priority || 'medium';
 
   return (
-    <div className="w-[260px] rotate-3">
-      <Card variant="bordered" padding="sm" className="bg-dark-800 shadow-2xl border-primary-500/50">
+    <div className="w-[260px] shadow-2xl">
+      <Card variant="bordered" padding="sm" className="bg-dark-800 border-primary-500">
         <div className="flex items-start gap-2 mb-2">
           <div
             className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
@@ -146,7 +138,7 @@ const TaskCardOverlay = ({ task }: { task: Item }) => {
           <h4 className="text-sm font-medium text-dark-100 line-clamp-2">{task.title}</h4>
         </div>
         {task.content && (
-          <p className="text-xs text-dark-500 line-clamp-2 mb-2 ml-4">
+          <p className="text-xs text-dark-500 line-clamp-2 ml-4">
             {task.content}
           </p>
         )}
@@ -171,17 +163,15 @@ const DroppableColumn = ({
   onTaskClick: (task: Item) => void;
   isOver: boolean;
 }) => {
-  const { setNodeRef } = useDroppable({
-    id: status,
-  });
+  const { setNodeRef } = useDroppable({ id: status });
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        'flex flex-col min-w-[280px] w-full lg:w-1/4',
+        'flex flex-col min-w-[260px] flex-shrink-0',
         'bg-dark-800/50 rounded-2xl p-3 transition-all duration-200',
-        isOver && 'bg-primary-500/10 ring-2 ring-primary-500/50 scale-[1.02]'
+        isOver && 'bg-primary-500/10 ring-2 ring-primary-500/50'
       )}
     >
       {/* Column Header */}
@@ -208,16 +198,14 @@ const DroppableColumn = ({
 
       {/* Tasks */}
       <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-        <div className="flex-1 space-y-2 min-h-[200px]">
-          <AnimatePresence>
-            {tasks.map((task) => (
-              <SortableTaskCard
-                key={task.id}
-                task={task}
-                onClick={() => onTaskClick(task)}
-              />
-            ))}
-          </AnimatePresence>
+        <div className="flex-1 space-y-2 min-h-[150px]">
+          {tasks.map((task) => (
+            <SortableTaskCard
+              key={task.id}
+              task={task}
+              onClick={() => onTaskClick(task)}
+            />
+          ))}
 
           {tasks.length === 0 && (
             <div className={cn(
@@ -225,7 +213,7 @@ const DroppableColumn = ({
               isOver ? "border-primary-500 bg-primary-500/5" : "border-dark-700"
             )}>
               <p className="text-sm text-dark-500">
-                {isOver ? 'Отпустите здесь' : 'Перетащите сюда'}
+                {isOver ? 'Отпустите' : 'Пусто'}
               </p>
             </div>
           )}
@@ -241,20 +229,13 @@ const KanbanBoard = ({ boardId }: KanbanBoardProps) => {
   const [activeTask, setActiveTask] = useState<Item | null>(null);
   const [overColumn, setOverColumn] = useState<ItemStatus | null>(null);
 
-  // Configure sensors for mouse, touch, and keyboard
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
+      activationConstraint: { distance: 5 },
     }),
     useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 150,
-        tolerance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor)
+      activationConstraint: { delay: 200, tolerance: 5 },
+    })
   );
 
   useEffect(() => {
@@ -267,27 +248,22 @@ const KanbanBoard = ({ boardId }: KanbanBoardProps) => {
 
   const handleDragStart = (event: DragStartEvent) => {
     const task = tasks.find((t) => t.id === event.active.id);
-    if (task) {
-      setActiveTask(task);
-    }
+    if (task) setActiveTask(task);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
     const { over } = event;
-
     if (!over) {
       setOverColumn(null);
       return;
     }
 
-    // Check if over a column
     const columnIds = columns.map(c => c.id);
     if (columnIds.includes(over.id as ItemStatus)) {
       setOverColumn(over.id as ItemStatus);
       return;
     }
 
-    // Check if over a task - find which column that task is in
     const overTask = tasks.find(t => t.id === over.id);
     if (overTask) {
       setOverColumn(overTask.status);
@@ -296,7 +272,6 @@ const KanbanBoard = ({ boardId }: KanbanBoardProps) => {
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-
     setActiveTask(null);
     setOverColumn(null);
 
@@ -306,19 +281,14 @@ const KanbanBoard = ({ boardId }: KanbanBoardProps) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
 
-    // Determine target status
     let targetStatus: ItemStatus | null = null;
-
-    // Check if dropped on a column directly
     const columnIds = columns.map(c => c.id);
+
     if (columnIds.includes(over.id as ItemStatus)) {
       targetStatus = over.id as ItemStatus;
     } else {
-      // Dropped on a task - get that task's status
       const overTask = tasks.find(t => t.id === over.id);
-      if (overTask) {
-        targetStatus = overTask.status;
-      }
+      if (overTask) targetStatus = overTask.status;
     }
 
     if (targetStatus && task.status !== targetStatus) {
@@ -337,20 +307,15 @@ const KanbanBoard = ({ boardId }: KanbanBoardProps) => {
     }
   };
 
-  const handleDragCancel = () => {
-    setActiveTask(null);
-    setOverColumn(null);
-  };
-
   if (isLoading) {
     return (
       <div className="flex gap-4 overflow-x-auto pb-4">
         {columns.map((col) => (
-          <div key={col.id} className="min-w-[280px] w-full lg:w-1/4 bg-dark-800/50 rounded-2xl p-3">
+          <div key={col.id} className="min-w-[260px] flex-shrink-0 bg-dark-800/50 rounded-2xl p-3">
             <div className="h-8 bg-dark-700 rounded-lg mb-3 animate-pulse" />
             <div className="space-y-2">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-24 bg-dark-700 rounded-xl animate-pulse" />
+              {[1, 2].map((i) => (
+                <div key={i} className="h-20 bg-dark-700 rounded-xl animate-pulse" />
               ))}
             </div>
           </div>
@@ -366,9 +331,8 @@ const KanbanBoard = ({ boardId }: KanbanBoardProps) => {
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4">
+      <div className="flex gap-4 overflow-x-auto pb-4">
         {columns.map((col) => (
           <DroppableColumn
             key={col.id}
@@ -382,11 +346,7 @@ const KanbanBoard = ({ boardId }: KanbanBoardProps) => {
         ))}
       </div>
 
-      {/* Drag Overlay */}
-      <DragOverlay dropAnimation={{
-        duration: 200,
-        easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
-      }}>
+      <DragOverlay>
         {activeTask ? <TaskCardOverlay task={activeTask} /> : null}
       </DragOverlay>
     </DndContext>
