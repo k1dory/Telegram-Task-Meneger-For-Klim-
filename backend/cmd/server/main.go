@@ -123,7 +123,8 @@ func main() {
 	// Global middleware
 	router.Use(middleware.Recovery())
 	router.Use(middleware.Logger())
-	router.Use(middleware.CORS())
+	// CORS is handled by nginx reverse proxy - don't duplicate headers
+	// router.Use(middleware.CORS())
 	router.Use(middleware.ErrorHandler())
 
 	// Health check handler
