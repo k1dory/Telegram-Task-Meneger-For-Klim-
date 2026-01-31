@@ -77,17 +77,21 @@ const TaskFormModal = () => {
       } else {
         const boardId = (data as { boardId?: string })?.boardId;
         const status = (data as { status?: string })?.status || 'pending';
-        if (boardId) {
-          await createTask(boardId, {
-            title,
-            content,
-            status: status as 'pending' | 'in_progress' | 'completed',
-            due_date: toBackendDate(dueDateStr) || undefined,
-            metadata: { priority },
-          });
+        if (!boardId) {
+          console.error('[TaskFormModal] No boardId provided, cannot create task');
+          return;
         }
+        await createTask(boardId, {
+          title,
+          content,
+          status: status as 'pending' | 'in_progress' | 'completed',
+          due_date: toBackendDate(dueDateStr) || undefined,
+          metadata: { priority },
+        });
       }
       closeModal();
+    } catch (error) {
+      console.error('[TaskFormModal] Failed to save task:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -184,15 +188,19 @@ const NoteFormModal = () => {
         });
       } else {
         const boardId = (data as { boardId?: string })?.boardId;
-        if (boardId) {
-          await createNote(boardId, {
-            title,
-            content,
-            metadata: { color },
-          });
+        if (!boardId) {
+          console.error('[NoteFormModal] No boardId provided, cannot create note');
+          return;
         }
+        await createNote(boardId, {
+          title,
+          content,
+          metadata: { color },
+        });
       }
       closeModal();
+    } catch (error) {
+      console.error('[NoteFormModal] Failed to save note:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -292,15 +300,19 @@ const HabitFormModal = () => {
         });
       } else {
         const boardId = (data as { boardId?: string })?.boardId;
-        if (boardId) {
-          await createHabit(boardId, {
-            title,
-            content,
-            metadata: { icon, color, streak: 0, longest_streak: 0 },
-          });
+        if (!boardId) {
+          console.error('[HabitFormModal] No boardId provided, cannot create habit');
+          return;
         }
+        await createHabit(boardId, {
+          title,
+          content,
+          metadata: { icon, color, streak: 0, longest_streak: 0 },
+        });
       }
       closeModal();
+    } catch (error) {
+      console.error('[HabitFormModal] Failed to save habit:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -433,21 +445,25 @@ const EventFormModal = () => {
         });
       } else {
         const boardId = (data as { boardId?: string })?.boardId;
-        if (boardId) {
-          await createEvent(boardId, {
-            title,
-            content,
-            due_date: backendStartDate,
-            metadata: {
-              start_date: startDateStr,
-              end_date: endDateStr,
-              all_day: allDay,
-              color,
-            },
-          });
+        if (!boardId) {
+          console.error('[EventFormModal] No boardId provided, cannot create event');
+          return;
         }
+        await createEvent(boardId, {
+          title,
+          content,
+          due_date: backendStartDate,
+          metadata: {
+            start_date: startDateStr,
+            end_date: endDateStr,
+            all_day: allDay,
+            color,
+          },
+        });
       }
       closeModal();
+    } catch (error) {
+      console.error('[EventFormModal] Failed to save event:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -640,13 +656,19 @@ const BoardFormModal = () => {
   }, [isOpen]);
 
   const handleSubmit = async () => {
-    if (!name.trim() || !currentFolder) return;
+    if (!name.trim() || !currentFolder) {
+      console.error('[BoardFormModal] Missing name or currentFolder');
+      return;
+    }
     setIsSubmitting(true);
 
     try {
+      console.log('[BoardFormModal] Creating board:', { folderId: currentFolder.id, name, type });
       await boardsApi.create(currentFolder.id, { name, type });
       await fetchFolderById(currentFolder.id);
       closeModal();
+    } catch (error) {
+      console.error('[BoardFormModal] Failed to create board:', error);
     } finally {
       setIsSubmitting(false);
     }
