@@ -23,20 +23,25 @@ const client = axios.create({
   },
 });
 
-// Request interceptor - add token
+// Request interceptor - add token (backup, main token is in axios defaults)
 client.interceptors.request.use(
   (config) => {
-    // ALWAYS read from localStorage to avoid any module caching issues
-    const storedToken = localStorage.getItem(TOKEN_KEY);
-    const token = storedToken || authToken || '';
+    // Check if Authorization already set (from defaults)
+    const existingAuth = config.headers.get('Authorization');
     console.log('[API Client] Request:', config.method?.toUpperCase(), config.url);
-    console.log('[API Client] Token check - localStorage:', storedToken ? `${storedToken.substring(0, 20)}...` : 'EMPTY', 'global:', authToken ? 'SET' : 'EMPTY');
-    if (token) {
-      // Use set() method for AxiosHeaders compatibility
-      config.headers.set('Authorization', `Bearer ${token}`);
-      console.log('[API Client] Added Authorization header with token:', token.substring(0, 20) + '...');
-    } else {
-      console.warn('[API Client] NO TOKEN AVAILABLE!');
+    console.log('[API Client] Existing Authorization in config:', existingAuth ? 'YES' : 'NO');
+
+    if (!existingAuth) {
+      // Fallback: read from localStorage
+      const storedToken = localStorage.getItem(TOKEN_KEY);
+      const token = storedToken || authToken || '';
+      console.log('[API Client] Fallback token check - localStorage:', storedToken ? `${storedToken.substring(0, 20)}...` : 'EMPTY');
+      if (token) {
+        config.headers.set('Authorization', `Bearer ${token}`);
+        console.log('[API Client] Added Authorization header via interceptor');
+      } else {
+        console.warn('[API Client] NO TOKEN AVAILABLE!');
+      }
     }
     return config;
   },
@@ -71,20 +76,25 @@ export const apiClient = {
       init_data: initData,
     });
 
-    // Save token globally AND to localStorage
+    // Save token globally AND to localStorage AND to axios defaults
     const token = response.data.token;
     console.log('[API Client] Received token from server:', token ? `${token.substring(0, 30)}...` : 'EMPTY');
 
     authToken = token;
     localStorage.setItem(TOKEN_KEY, token);
 
+    // CRITICAL: Set token directly on axios instance defaults
+    client.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    console.log('[API Client] Set Authorization in axios defaults');
+
     // Verify immediately
     const verifyGlobal = authToken;
     const verifyStorage = localStorage.getItem(TOKEN_KEY);
+    const verifyAxios = client.defaults.headers.common['Authorization'];
     console.log('[API Client] VERIFY after save:');
     console.log('[API Client]   - Global authToken:', verifyGlobal ? `${verifyGlobal.substring(0, 20)}...` : 'EMPTY');
     console.log('[API Client]   - localStorage:', verifyStorage ? `${verifyStorage.substring(0, 20)}...` : 'EMPTY');
-    console.log('[API Client]   - Match:', verifyGlobal === verifyStorage);
+    console.log('[API Client]   - axios defaults:', verifyAxios ? 'SET' : 'EMPTY');
 
     return response.data;
   },
