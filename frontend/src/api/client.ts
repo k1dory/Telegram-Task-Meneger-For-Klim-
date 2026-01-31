@@ -116,9 +116,9 @@ export const apiClient = {
     }
   },
 
-  async delete<T>(url: string): Promise<T> {
+  async delete<T>(url: string, config?: { data?: unknown }): Promise<T> {
     try {
-      const response = await axiosInstance.delete<T>(url);
+      const response = await axiosInstance.delete<T>(url, config);
       return response.data;
     } catch (error) {
       throw handleError(error as AxiosError);
