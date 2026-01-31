@@ -9,11 +9,6 @@ interface AuthResponse {
   user: User;
 }
 
-// Store token globally, not in class instance
-let authToken: string = localStorage.getItem(TOKEN_KEY) || '';
-
-console.log('[API Client] Initial token from localStorage:', authToken ? `${authToken.substring(0, 20)}...` : 'EMPTY');
-
 // Create axios instance
 const client = axios.create({
   baseURL: BASE_URL,
@@ -23,40 +18,22 @@ const client = axios.create({
   },
 });
 
-// Request interceptor - add token (backup, main token is in axios defaults)
-client.interceptors.request.use(
-  (config) => {
-    // Check if Authorization already set (from defaults)
-    const existingAuth = config.headers.get('Authorization');
-    console.log('[API Client] Request:', config.method?.toUpperCase(), config.url);
-    console.log('[API Client] Existing Authorization in config:', existingAuth ? 'YES' : 'NO');
+// Initialize token from localStorage on module load
+const storedToken = localStorage.getItem(TOKEN_KEY);
+if (storedToken) {
+  client.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+}
 
-    if (!existingAuth) {
-      // Fallback: read from localStorage
-      const storedToken = localStorage.getItem(TOKEN_KEY);
-      const token = storedToken || authToken || '';
-      console.log('[API Client] Fallback token check - localStorage:', storedToken ? `${storedToken.substring(0, 20)}...` : 'EMPTY');
-      if (token) {
-        config.headers.set('Authorization', `Bearer ${token}`);
-        console.log('[API Client] Added Authorization header via interceptor');
-      } else {
-        console.warn('[API Client] NO TOKEN AVAILABLE!');
-      }
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Response interceptor
+// Response interceptor for error handling
 client.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      console.warn('401 Unauthorized');
+      console.warn('401 Unauthorized - clearing token');
+      localStorage.removeItem(TOKEN_KEY);
+      delete client.defaults.headers.common['Authorization'];
     }
 
-    // Format error
     if (error.response?.data) {
       const data = error.response.data as { message?: string; error?: string };
       return Promise.reject(new Error(data.message || data.error || 'An error occurred'));
@@ -71,45 +48,34 @@ client.interceptors.response.use(
 // API functions
 export const apiClient = {
   async authenticate(initData: string): Promise<AuthResponse> {
-    console.log('[API Client] authenticate() called');
     const response = await client.post<AuthResponse>('/auth/telegram', {
       init_data: initData,
     });
 
-    // Save token globally AND to localStorage AND to axios defaults
     const token = response.data.token;
-    console.log('[API Client] Received token from server:', token ? `${token.substring(0, 30)}...` : 'EMPTY');
 
-    authToken = token;
+    // Save token to localStorage and set in axios defaults
     localStorage.setItem(TOKEN_KEY, token);
-
-    // CRITICAL: Set token directly on axios instance defaults
     client.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    console.log('[API Client] Set Authorization in axios defaults');
-
-    // Verify immediately
-    const verifyGlobal = authToken;
-    const verifyStorage = localStorage.getItem(TOKEN_KEY);
-    const verifyAxios = client.defaults.headers.common['Authorization'];
-    console.log('[API Client] VERIFY after save:');
-    console.log('[API Client]   - Global authToken:', verifyGlobal ? `${verifyGlobal.substring(0, 20)}...` : 'EMPTY');
-    console.log('[API Client]   - localStorage:', verifyStorage ? `${verifyStorage.substring(0, 20)}...` : 'EMPTY');
-    console.log('[API Client]   - axios defaults:', verifyAxios ? 'SET' : 'EMPTY');
 
     return response.data;
   },
 
   isAuthenticated(): boolean {
-    return !!authToken;
+    return !!client.defaults.headers.common['Authorization'];
   },
 
-  getToken(): string {
-    return authToken;
+  getToken(): string | undefined {
+    const auth = client.defaults.headers.common['Authorization'];
+    if (typeof auth === 'string' && auth.startsWith('Bearer ')) {
+      return auth.substring(7);
+    }
+    return undefined;
   },
 
   logout(): void {
-    authToken = '';
     localStorage.removeItem(TOKEN_KEY);
+    delete client.defaults.headers.common['Authorization'];
   },
 
   async getCurrentUser(): Promise<User> {
