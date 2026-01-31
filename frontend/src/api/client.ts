@@ -12,7 +12,6 @@ interface AuthResponse {
 class ApiClient {
   private client: AxiosInstance;
   private token: string = '';
-  private authPromise: Promise<AuthResponse> | null = null;
 
   constructor() {
     this.client = axios.create({
@@ -31,31 +30,25 @@ class ApiClient {
 
   // Authenticate with Telegram initData and get JWT
   async authenticate(initData: string): Promise<AuthResponse> {
-    // Store the promise so other requests can wait for it
-    this.authPromise = this.client.post<AuthResponse>('/auth/telegram', {
+    const response = await this.client.post<AuthResponse>('/auth/telegram', {
       init_data: initData,
-    }).then(response => {
-      this.token = response.data.token;
-      localStorage.setItem(TOKEN_KEY, this.token);
-      console.log('Token saved successfully');
-      return response.data;
     });
 
-    const result = await this.authPromise;
-    this.authPromise = null;
-    return result;
-  }
+    this.token = response.data.token;
+    localStorage.setItem(TOKEN_KEY, this.token);
+    console.log('Auth successful, token saved');
 
-  // Wait for any pending authentication
-  private async waitForAuth(): Promise<void> {
-    if (this.authPromise) {
-      await this.authPromise;
-    }
+    return response.data;
   }
 
   // Check if user is authenticated
   isAuthenticated(): boolean {
     return !!this.token;
+  }
+
+  // Get current token
+  getToken(): string {
+    return this.token;
   }
 
   // Clear token on logout
@@ -71,14 +64,15 @@ class ApiClient {
   }
 
   private setupInterceptors() {
-    // Request interceptor
+    // Request interceptor - ALWAYS add token from current state
     this.client.interceptors.request.use(
       (config) => {
-        // Add JWT token for authentication
-        if (this.token) {
-          config.headers['Authorization'] = `Bearer ${this.token}`;
+        // Reload token from localStorage in case it was updated
+        const currentToken = this.token || localStorage.getItem(TOKEN_KEY) || '';
+        if (currentToken) {
+          config.headers['Authorization'] = `Bearer ${currentToken}`;
         }
-
+        console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}, hasToken: ${!!currentToken}`);
         return config;
       },
       (error) => Promise.reject(error)
@@ -89,13 +83,10 @@ class ApiClient {
       (response: AxiosResponse) => response,
       async (error: AxiosError) => {
         if (error.response?.status === 401) {
-          // Don't auto-logout - let the app handle re-authentication
-          // This prevents race conditions where parallel requests clear the token
-          console.warn('Unauthorized request - token may be expired');
+          console.warn('401 Unauthorized - token may be invalid or expired');
         }
 
         if (error.response?.status === 429) {
-          // Handle rate limiting
           console.error('Rate limited');
         }
 
@@ -116,31 +107,26 @@ class ApiClient {
   }
 
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    await this.waitForAuth();
     const response = await this.client.get<T>(url, config);
     return response.data;
   }
 
   async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    await this.waitForAuth();
     const response = await this.client.post<T>(url, data, config);
     return response.data;
   }
 
   async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    await this.waitForAuth();
     const response = await this.client.put<T>(url, data, config);
     return response.data;
   }
 
   async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    await this.waitForAuth();
     const response = await this.client.patch<T>(url, data, config);
     return response.data;
   }
 
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    await this.waitForAuth();
     const response = await this.client.delete<T>(url, config);
     return response.data;
   }
