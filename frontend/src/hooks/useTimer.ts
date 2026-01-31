@@ -33,6 +33,19 @@ export function useTimer(options: UseTimerOptions = {}): UseTimerReturn {
   const startTimeRef = useRef<number>(0);
   const accumulatedTimeRef = useRef<number>(initialTime);
 
+  // Use refs for callbacks to avoid recreating interval on callback changes
+  const onTickRef = useRef(onTick);
+  const onCompleteRef = useRef(onComplete);
+
+  // Keep refs updated
+  useEffect(() => {
+    onTickRef.current = onTick;
+  }, [onTick]);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -81,17 +94,17 @@ export function useTimer(options: UseTimerOptions = {}): UseTimerReturn {
         : accumulatedTimeRef.current + elapsed;
 
       setTime(newTime);
-      onTick?.(newTime);
+      onTickRef.current?.(newTime);
 
       if (countdown && newTime === 0) {
         clearTimer();
         setIsRunning(false);
-        onComplete?.();
+        onCompleteRef.current?.();
       }
     }, 1000);
 
     return clearTimer;
-  }, [isRunning, countdown, onTick, onComplete, clearTimer]);
+  }, [isRunning, countdown, clearTimer]);
 
   const formattedTime = formatTime(time);
 

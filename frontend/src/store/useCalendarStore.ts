@@ -162,18 +162,22 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   setViewMode: (viewMode) => set({ viewMode }),
 
   nextMonth: () => {
-    set((state) => ({ currentMonth: addMonths(state.currentMonth, 1), events: [] }));
+    const newMonth = addMonths(get().currentMonth, 1);
+    set({ currentMonth: newMonth });
     const { currentBoardId } = get();
     if (currentBoardId) {
-      get().fetchEvents(currentBoardId);
+      // Fetch new events without clearing existing ones first (fetchEvents will merge)
+      get().fetchEvents(currentBoardId, newMonth);
     }
   },
 
   prevMonth: () => {
-    set((state) => ({ currentMonth: subMonths(state.currentMonth, 1), events: [] }));
+    const newMonth = subMonths(get().currentMonth, 1);
+    set({ currentMonth: newMonth });
     const { currentBoardId } = get();
     if (currentBoardId) {
-      get().fetchEvents(currentBoardId);
+      // Fetch new events without clearing existing ones first (fetchEvents will merge)
+      get().fetchEvents(currentBoardId, newMonth);
     }
   },
 

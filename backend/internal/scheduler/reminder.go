@@ -92,6 +92,12 @@ func (s *ReminderScheduler) checkReminders() {
 	s.logger.Info("found pending reminders", "count", len(reminders))
 
 	for _, reminder := range reminders {
+		// Check if context is cancelled before processing each reminder
+		if ctx.Err() != nil {
+			s.logger.Warn("reminder check cancelled due to timeout", "processed", len(reminders))
+			return
+		}
+
 		if err := s.notificationSvc.SendReminder(ctx, &reminder); err != nil {
 			s.logger.Error("failed to send reminder",
 				"reminder_id", reminder.ID,

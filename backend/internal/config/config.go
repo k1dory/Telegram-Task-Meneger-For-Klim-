@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"net/url"
 	"os"
 	"strconv"
@@ -48,6 +49,16 @@ type JWTConfig struct {
 func Load() (*Config, error) {
 	dbConfig := loadDatabaseConfig()
 
+	// JWT_SECRET is required in production
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		// Only allow default in debug mode
+		if getEnv("GIN_MODE", "debug") != "debug" {
+			return nil, fmt.Errorf("JWT_SECRET environment variable is required in production")
+		}
+		jwtSecret = "dev-only-secret-do-not-use-in-production"
+	}
+
 	return &Config{
 		Server: ServerConfig{
 			Port:         getEnv("API_PORT", "8080"),
@@ -61,7 +72,7 @@ func Load() (*Config, error) {
 			AppURL:   getEnv("TELEGRAM_MINI_APP_URL", ""),
 		},
 		JWT: JWTConfig{
-			Secret:          getEnv("JWT_SECRET", "your-super-secret-key-change-in-production"),
+			Secret:          jwtSecret,
 			ExpirationHours: getIntEnv("JWT_EXPIRATION_HOURS", 720), // 30 days
 		},
 	}, nil

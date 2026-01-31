@@ -38,7 +38,9 @@ const TimeManagerBoard = ({ boardId }: TimeManagerBoardProps) => {
         timer.reset(0);
       }
     }
-  }, [activeTimerTaskId, tasks]);
+    // Note: timer methods are stable (from useCallback), so we include timer for completeness
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTimerTaskId, tasks, timer.isRunning]);
 
   const handleStartTimer = (task: Item) => {
     if (activeTimerTaskId) {

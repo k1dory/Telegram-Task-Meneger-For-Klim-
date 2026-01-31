@@ -144,16 +144,19 @@ func main() {
 	router.GET("/health", healthHandler)
 	router.GET("/api/health", healthHandler)
 
+	// Rate limiter for auth endpoints (10 requests per minute)
+	authRateLimiter := middleware.RateLimit(10, time.Minute)
+
 	// API routes
 	api := router.Group("/api")
 	{
 		// Telegram webhook (public - called by Telegram servers)
 		api.POST("/telegram/webhook", webhookHandler.HandleWebhook)
 
-		// Auth routes (public)
+		// Auth routes (public, with rate limiting)
 		auth := api.Group("/auth")
 		{
-			auth.POST("/telegram", authHandler.AuthenticateTelegram)
+			auth.POST("/telegram", authRateLimiter, authHandler.AuthenticateTelegram)
 
 			// Protected auth routes
 			authProtected := auth.Group("")

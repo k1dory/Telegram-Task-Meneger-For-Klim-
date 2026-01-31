@@ -17,10 +17,9 @@ class TokenManager {
       const stored = localStorage.getItem(this.STORAGE_KEY);
       if (stored && stored.length > 0) {
         this.memoryToken = stored;
-        console.log('[TokenManager] Restored token from localStorage');
       }
-    } catch (e) {
-      console.warn('[TokenManager] Failed to restore from localStorage:', e);
+    } catch {
+      // Storage not available
     }
 
     // Also try sessionStorage as fallback
@@ -29,10 +28,9 @@ class TokenManager {
         const sessionStored = sessionStorage.getItem(this.STORAGE_KEY);
         if (sessionStored && sessionStored.length > 0) {
           this.memoryToken = sessionStored;
-          console.log('[TokenManager] Restored token from sessionStorage');
         }
-      } catch (e) {
-        console.warn('[TokenManager] Failed to restore from sessionStorage:', e);
+      } catch {
+        // Storage not available
       }
     }
   }
@@ -43,27 +41,23 @@ class TokenManager {
 
   set(token: string): void {
     if (!token || token.length === 0) {
-      console.error('[TokenManager] Attempted to set empty token!');
       return;
     }
 
     this.memoryToken = token;
-    console.log('[TokenManager] Token saved to memory, length:', token.length);
 
     // Save to localStorage
     try {
       localStorage.setItem(this.STORAGE_KEY, token);
-      console.log('[TokenManager] Token saved to localStorage');
-    } catch (e) {
-      console.warn('[TokenManager] Failed to save to localStorage:', e);
+    } catch {
+      // Storage not available
     }
 
     // Also save to sessionStorage as backup
     try {
       sessionStorage.setItem(this.STORAGE_KEY, token);
-      console.log('[TokenManager] Token saved to sessionStorage');
-    } catch (e) {
-      console.warn('[TokenManager] Failed to save to sessionStorage:', e);
+    } catch {
+      // Storage not available
     }
   }
 
@@ -73,9 +67,8 @@ class TokenManager {
       localStorage.removeItem(this.STORAGE_KEY);
       sessionStorage.removeItem(this.STORAGE_KEY);
     } catch {
-      // ignore
+      // Storage not available
     }
-    console.log('[TokenManager] Token cleared');
   }
 
   isValid(): boolean {
@@ -117,9 +110,6 @@ async function request<T>(
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
-    console.log(`[API] ${method} ${url} - with auth token`);
-  } else {
-    console.warn(`[API] ${method} ${url} - NO AUTH TOKEN! Request will likely fail with 401`);
   }
 
   const config: RequestInit = {
@@ -142,11 +132,6 @@ async function request<T>(
       // ignore parse error
     }
 
-    // Log auth failures specifically
-    if (response.status === 401) {
-      console.error(`[API] ${method} ${url} - 401 Unauthorized. Token valid: ${tokenManager.isValid()}`);
-    }
-
     throw new Error(errorMessage);
   }
 
@@ -162,13 +147,9 @@ async function request<T>(
 // API functions
 export const apiClient = {
   async authenticate(initData: string): Promise<AuthResponse> {
-    console.log('[API] Authenticating with initData length:', initData?.length || 0);
-
     if (!initData || initData.length === 0) {
       throw new Error('No initData provided for authentication');
     }
-
-    console.log('[API] Sending auth request to:', `${BASE_URL}/auth/telegram`);
 
     let response: Response;
     try {
@@ -180,11 +161,8 @@ export const apiClient = {
         body: JSON.stringify({ init_data: initData }),
       });
     } catch (fetchError) {
-      console.error('[API] Fetch failed:', fetchError);
       throw new Error('Network error: ' + (fetchError instanceof Error ? fetchError.message : 'fetch failed'));
     }
-
-    console.log('[API] Response status:', response.status, response.statusText);
 
     if (!response.ok) {
       let errorMessage = 'Authentication failed';
@@ -194,41 +172,29 @@ export const apiClient = {
       } catch {
         // ignore
       }
-      console.error('[API] Authentication failed:', response.status, errorMessage);
       throw new Error(errorMessage);
     }
 
     const responseText = await response.text();
-    console.log('[API] Response text length:', responseText.length);
-    console.log('[API] Response text preview:', responseText.substring(0, 200));
 
     let data: AuthResponse;
     try {
       data = JSON.parse(responseText);
-    } catch (e) {
-      console.error('[API] Failed to parse response JSON:', e);
+    } catch {
       throw new Error('Invalid server response');
     }
 
-    console.log('[API] Parsed response:', { hasToken: !!data.token, hasUser: !!data.user });
-
     if (!data.token) {
-      console.error('[API] Server returned no token!');
       throw new Error('Server did not return authentication token');
     }
-
-    console.log('[API] Authentication successful, saving token...');
 
     // Save token to memory and storage
     tokenManager.set(data.token);
 
     // Verify token was saved
     if (!tokenManager.isValid()) {
-      console.error('[API] Token was not saved properly!');
       throw new Error('Failed to save authentication token');
     }
-
-    console.log('[API] Token saved and verified, user:', data.user?.username || 'unknown');
 
     return data;
   },

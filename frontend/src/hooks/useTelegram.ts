@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
 interface TelegramWebApp {
   ready: () => void;
@@ -96,6 +96,10 @@ export function useTelegram() {
   const [isReady, setIsReady] = useState(false);
   const [webApp, setWebApp] = useState<TelegramWebApp | null>(null);
 
+  // Store callback refs for proper cleanup
+  const mainButtonCallbackRef = useRef<(() => void) | null>(null);
+  const backButtonCallbackRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
     if (tg) {
@@ -106,6 +110,20 @@ export function useTelegram() {
       setWebApp(tg);
       setIsReady(true);
     }
+
+    // Cleanup on unmount
+    return () => {
+      if (tg) {
+        if (mainButtonCallbackRef.current) {
+          tg.MainButton.offClick(mainButtonCallbackRef.current);
+          tg.MainButton.hide();
+        }
+        if (backButtonCallbackRef.current) {
+          tg.BackButton.offClick(backButtonCallbackRef.current);
+          tg.BackButton.hide();
+        }
+      }
+    };
   }, []);
 
   const user = webApp?.initDataUnsafe?.user || null;
@@ -116,6 +134,13 @@ export function useTelegram() {
   const showMainButton = useCallback(
     (text: string, onClick: () => void) => {
       if (!webApp) return;
+
+      // Remove previous callback if exists
+      if (mainButtonCallbackRef.current) {
+        webApp.MainButton.offClick(mainButtonCallbackRef.current);
+      }
+
+      mainButtonCallbackRef.current = onClick;
       webApp.MainButton.setText(text);
       webApp.MainButton.onClick(onClick);
       webApp.MainButton.show();
@@ -125,12 +150,25 @@ export function useTelegram() {
 
   const hideMainButton = useCallback(() => {
     if (!webApp) return;
+
+    // Remove callback before hiding
+    if (mainButtonCallbackRef.current) {
+      webApp.MainButton.offClick(mainButtonCallbackRef.current);
+      mainButtonCallbackRef.current = null;
+    }
     webApp.MainButton.hide();
   }, [webApp]);
 
   const showBackButton = useCallback(
     (onClick: () => void) => {
       if (!webApp) return;
+
+      // Remove previous callback if exists
+      if (backButtonCallbackRef.current) {
+        webApp.BackButton.offClick(backButtonCallbackRef.current);
+      }
+
+      backButtonCallbackRef.current = onClick;
       webApp.BackButton.onClick(onClick);
       webApp.BackButton.show();
     },
@@ -139,6 +177,12 @@ export function useTelegram() {
 
   const hideBackButton = useCallback(() => {
     if (!webApp) return;
+
+    // Remove callback before hiding
+    if (backButtonCallbackRef.current) {
+      webApp.BackButton.offClick(backButtonCallbackRef.current);
+      backButtonCallbackRef.current = null;
+    }
     webApp.BackButton.hide();
   }, [webApp]);
 

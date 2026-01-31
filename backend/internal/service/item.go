@@ -317,6 +317,11 @@ func (s *ItemService) MoveItem(ctx context.Context, userID int64, itemID uuid.UU
 
 // SetReminder creates a reminder for an item
 func (s *ItemService) SetReminder(ctx context.Context, userID int64, itemID uuid.UUID, req *domain.CreateReminderRequest) (*domain.Reminder, error) {
+	// Validate reminder time is in the future (with 1 minute buffer for clock skew)
+	if req.RemindAt.Before(time.Now().Add(-1 * time.Minute)) {
+		return nil, domain.ErrInvalidInput
+	}
+
 	item, err := s.itemRepo.GetByID(ctx, itemID)
 	if err != nil {
 		return nil, err

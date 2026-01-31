@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, subDays, eachDayOfInterval, isToday } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -27,14 +27,23 @@ const HabitTrackerBoard = ({ boardId }: HabitTrackerBoardProps) => {
     fetchHabits(boardId);
   }, [boardId, fetchHabits]);
 
-  // Fetch completions for all habits
+  // Track which habits we've already fetched completions for
+  const fetchedCompletionsRef = useRef<Set<string>>(new Set());
+
+  // Fetch completions for all habits (only once per habit)
   useEffect(() => {
     habits.forEach((habit) => {
-      if (!completions[habit.id]) {
+      if (!fetchedCompletionsRef.current.has(habit.id) && !completions[habit.id]) {
+        fetchedCompletionsRef.current.add(habit.id);
         fetchCompletions(habit.id);
       }
     });
   }, [habits, completions, fetchCompletions]);
+
+  // Reset fetched completions when board changes
+  useEffect(() => {
+    fetchedCompletionsRef.current.clear();
+  }, [boardId]);
 
   // Get last 7 days
   const last7Days = eachDayOfInterval({

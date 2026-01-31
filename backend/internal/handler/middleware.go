@@ -4,7 +4,9 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -35,21 +37,6 @@ func NewMiddleware(authService *service.AuthService, logger *slog.Logger) *Middl
 func (m *Middleware) AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader(AuthorizationHeader)
-
-		// Debug logging - log ALL headers
-		allHeaders := make(map[string]string)
-		for key, values := range c.Request.Header {
-			if len(values) > 0 {
-				allHeaders[key] = values[0]
-			}
-		}
-		m.logger.Info("auth check",
-			"path", c.Request.URL.Path,
-			"method", c.Request.Method,
-			"has_auth_header", authHeader != "",
-			"auth_header_len", len(authHeader),
-			"all_headers", allHeaders,
-		)
 
 		if authHeader == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
@@ -202,24 +189,55 @@ func (m *Middleware) ErrorHandler() gin.HandlerFunc {
 
 // RateLimiter simple in-memory rate limiter (for production use Redis)
 type RateLimiter struct {
+	mu       sync.Mutex
 	requests map[string][]time.Time
 	limit    int
 	window   time.Duration
 }
 
 func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
-	return &RateLimiter{
+	rl := &RateLimiter{
 		requests: make(map[string][]time.Time),
 		limit:    limit,
 		window:   window,
 	}
+	// Start cleanup goroutine
+	go rl.cleanup()
+	return rl
+}
+
+// cleanup periodically removes stale entries to prevent unbounded memory growth
+func (rl *RateLimiter) cleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	for range ticker.C {
+		rl.mu.Lock()
+		now := time.Now()
+		windowStart := now.Add(-rl.window)
+		for key, times := range rl.requests {
+			var valid []time.Time
+			for _, t := range times {
+				if t.After(windowStart) {
+					valid = append(valid, t)
+				}
+			}
+			if len(valid) == 0 {
+				delete(rl.requests, key)
+			} else {
+				rl.requests[key] = valid
+			}
+		}
+		rl.mu.Unlock()
+	}
 }
 
 func (rl *RateLimiter) Allow(key string) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
 	now := time.Now()
 	windowStart := now.Add(-rl.window)
 
-	// Clean old requests
+	// Clean old requests for this key
 	var validRequests []time.Time
 	for _, t := range rl.requests[key] {
 		if t.After(windowStart) {
@@ -228,6 +246,7 @@ func (rl *RateLimiter) Allow(key string) bool {
 	}
 
 	if len(validRequests) >= rl.limit {
+		rl.requests[key] = validRequests
 		return false
 	}
 
@@ -241,9 +260,9 @@ func (m *Middleware) RateLimit(limit int, window time.Duration) gin.HandlerFunc 
 	return func(c *gin.Context) {
 		key := c.ClientIP()
 
-		// Use user ID if authenticated
+		// Use user ID if authenticated (proper int64 to string conversion)
 		if userID, err := GetUserID(c); err == nil {
-			key = string(rune(userID))
+			key = "user:" + strconv.FormatInt(userID, 10)
 		}
 
 		if !limiter.Allow(key) {
