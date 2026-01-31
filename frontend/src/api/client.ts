@@ -1,4 +1,3 @@
-import axios, { AxiosError } from 'axios';
 import type { User } from '@/types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
@@ -9,134 +8,165 @@ interface AuthResponse {
   user: User;
 }
 
-// Create axios instance
-const axiosInstance = axios.create({
-  baseURL: BASE_URL,
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Initialize token from localStorage on module load
-const storedToken = localStorage.getItem(TOKEN_KEY);
-if (storedToken) {
-  axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+// Get token
+function getToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
 }
 
-// Request interceptor - adds token from localStorage to EVERY request (backup)
-axiosInstance.interceptors.request.use(
-  (config) => {
-    // Double-check: if no auth header, try localStorage
-    if (!config.headers.Authorization) {
-      const token = localStorage.getItem(TOKEN_KEY);
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+// Set token
+function setToken(token: string): void {
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // localStorage not available
+  }
+}
 
-// Response error handler
-function handleError(error: AxiosError): never {
-  if (error.response?.data) {
-    const data = error.response.data as { message?: string; error?: string };
-    throw new Error(data.message || data.error || 'An error occurred');
+// Clear token
+function clearToken(): void {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // localStorage not available
   }
-  if (error.request) {
-    throw new Error('Network error');
+}
+
+// Make fetch request with auth
+async function request<T>(
+  method: string,
+  url: string,
+  data?: unknown
+): Promise<T> {
+  const token = getToken();
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
-  throw new Error(error.message || 'Unknown error');
+
+  const config: RequestInit = {
+    method,
+    headers,
+  };
+
+  if (data && method !== 'GET' && method !== 'DELETE') {
+    config.body = JSON.stringify(data);
+  }
+
+  const response = await fetch(`${BASE_URL}${url}`, config);
+
+  if (!response.ok) {
+    let errorMessage = 'An error occurred';
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.message || errorData.error || errorMessage;
+    } catch {
+      // ignore parse error
+    }
+    throw new Error(errorMessage);
+  }
+
+  // Handle empty response
+  const text = await response.text();
+  if (!text) {
+    return {} as T;
+  }
+
+  return JSON.parse(text) as T;
 }
 
 // API functions
 export const apiClient = {
   async authenticate(initData: string): Promise<AuthResponse> {
-    try {
-      const response = await axiosInstance.post<AuthResponse>('/auth/telegram', {
-        init_data: initData,
-      });
+    const response = await fetch(`${BASE_URL}/auth/telegram`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ init_data: initData }),
+    });
 
-      const token = response.data.token;
-
-      // Save token to localStorage
-      localStorage.setItem(TOKEN_KEY, token);
-
-      // ALSO set directly on axios instance defaults
-      axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-      return response.data;
-    } catch (error) {
-      throw handleError(error as AxiosError);
+    if (!response.ok) {
+      let errorMessage = 'Authentication failed';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.error || errorMessage;
+      } catch {
+        // ignore
+      }
+      throw new Error(errorMessage);
     }
+
+    const data: AuthResponse = await response.json();
+
+    // Save token
+    setToken(data.token);
+
+    return data;
   },
 
   isAuthenticated(): boolean {
-    return !!localStorage.getItem(TOKEN_KEY);
+    return !!getToken();
   },
 
-  getToken(): string | null {
-    return localStorage.getItem(TOKEN_KEY);
-  },
+  getToken,
 
   logout(): void {
-    localStorage.removeItem(TOKEN_KEY);
+    clearToken();
   },
 
   async getCurrentUser(): Promise<User> {
-    try {
-      const response = await axiosInstance.get<User>('/auth/me');
-      return response.data;
-    } catch (error) {
-      throw handleError(error as AxiosError);
-    }
+    return request<User>('GET', '/auth/me');
   },
 
   async get<T>(url: string): Promise<T> {
-    try {
-      const response = await axiosInstance.get<T>(url);
-      return response.data;
-    } catch (error) {
-      throw handleError(error as AxiosError);
-    }
+    return request<T>('GET', url);
   },
 
   async post<T>(url: string, data?: unknown): Promise<T> {
-    try {
-      const response = await axiosInstance.post<T>(url, data);
-      return response.data;
-    } catch (error) {
-      throw handleError(error as AxiosError);
-    }
+    return request<T>('POST', url, data);
   },
 
   async put<T>(url: string, data?: unknown): Promise<T> {
-    try {
-      const response = await axiosInstance.put<T>(url, data);
-      return response.data;
-    } catch (error) {
-      throw handleError(error as AxiosError);
-    }
+    return request<T>('PUT', url, data);
   },
 
   async patch<T>(url: string, data?: unknown): Promise<T> {
-    try {
-      const response = await axiosInstance.patch<T>(url, data);
-      return response.data;
-    } catch (error) {
-      throw handleError(error as AxiosError);
-    }
+    return request<T>('PATCH', url, data);
   },
 
   async delete<T>(url: string, config?: { data?: unknown }): Promise<T> {
-    try {
-      const response = await axiosInstance.delete<T>(url, config);
-      return response.data;
-    } catch (error) {
-      throw handleError(error as AxiosError);
+    if (config?.data) {
+      // DELETE with body
+      const token = getToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${BASE_URL}${url}`, {
+        method: 'DELETE',
+        headers,
+        body: JSON.stringify(config.data),
+      });
+
+      if (!response.ok) {
+        throw new Error('Delete failed');
+      }
+
+      const text = await response.text();
+      return text ? JSON.parse(text) : ({} as T);
     }
+    return request<T>('DELETE', url);
   },
 };
 
