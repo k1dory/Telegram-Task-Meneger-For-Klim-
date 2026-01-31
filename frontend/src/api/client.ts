@@ -9,6 +9,9 @@ interface AuthResponse {
   user: User;
 }
 
+// Token stored in memory for immediate access
+let currentToken: string | null = localStorage.getItem(TOKEN_KEY);
+
 // Create axios instance
 const client = axios.create({
   baseURL: BASE_URL,
@@ -18,20 +21,24 @@ const client = axios.create({
   },
 });
 
-// Initialize token from localStorage on module load
-const storedToken = localStorage.getItem(TOKEN_KEY);
-if (storedToken) {
-  client.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-}
+// Request interceptor - ALWAYS add token from memory
+client.interceptors.request.use(
+  (config) => {
+    if (currentToken) {
+      config.headers.Authorization = `Bearer ${currentToken}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 // Response interceptor for error handling
 client.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      console.warn('401 Unauthorized - clearing token');
-      localStorage.removeItem(TOKEN_KEY);
-      delete client.defaults.headers.common['Authorization'];
+      // Don't clear token on 401 - might be a timing issue
+      console.warn('401 Unauthorized');
     }
 
     if (error.response?.data) {
@@ -54,28 +61,24 @@ export const apiClient = {
 
     const token = response.data.token;
 
-    // Save token to localStorage and set in axios defaults
+    // Save token to memory AND localStorage
+    currentToken = token;
     localStorage.setItem(TOKEN_KEY, token);
-    client.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
     return response.data;
   },
 
   isAuthenticated(): boolean {
-    return !!client.defaults.headers.common['Authorization'];
+    return !!currentToken;
   },
 
-  getToken(): string | undefined {
-    const auth = client.defaults.headers.common['Authorization'];
-    if (typeof auth === 'string' && auth.startsWith('Bearer ')) {
-      return auth.substring(7);
-    }
-    return undefined;
+  getToken(): string | null {
+    return currentToken;
   },
 
   logout(): void {
+    currentToken = null;
     localStorage.removeItem(TOKEN_KEY);
-    delete client.defaults.headers.common['Authorization'];
   },
 
   async getCurrentUser(): Promise<User> {
