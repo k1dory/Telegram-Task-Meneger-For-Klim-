@@ -12,6 +12,7 @@ interface AuthResponse {
 class ApiClient {
   private client: AxiosInstance;
   private token: string = '';
+  private authPromise: Promise<AuthResponse> | null = null;
 
   constructor() {
     this.client = axios.create({
@@ -30,14 +31,26 @@ class ApiClient {
 
   // Authenticate with Telegram initData and get JWT
   async authenticate(initData: string): Promise<AuthResponse> {
-    const response = await this.client.post<AuthResponse>('/auth/telegram', {
+    // Store the promise so other requests can wait for it
+    this.authPromise = this.client.post<AuthResponse>('/auth/telegram', {
       init_data: initData,
+    }).then(response => {
+      this.token = response.data.token;
+      localStorage.setItem(TOKEN_KEY, this.token);
+      console.log('Token saved successfully');
+      return response.data;
     });
 
-    this.token = response.data.token;
-    localStorage.setItem(TOKEN_KEY, this.token);
+    const result = await this.authPromise;
+    this.authPromise = null;
+    return result;
+  }
 
-    return response.data;
+  // Wait for any pending authentication
+  private async waitForAuth(): Promise<void> {
+    if (this.authPromise) {
+      await this.authPromise;
+    }
   }
 
   // Check if user is authenticated
@@ -103,26 +116,31 @@ class ApiClient {
   }
 
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    await this.waitForAuth();
     const response = await this.client.get<T>(url, config);
     return response.data;
   }
 
   async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    await this.waitForAuth();
     const response = await this.client.post<T>(url, data, config);
     return response.data;
   }
 
   async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    await this.waitForAuth();
     const response = await this.client.put<T>(url, data, config);
     return response.data;
   }
 
   async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    await this.waitForAuth();
     const response = await this.client.patch<T>(url, data, config);
     return response.data;
   }
 
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    await this.waitForAuth();
     const response = await this.client.delete<T>(url, config);
     return response.data;
   }
