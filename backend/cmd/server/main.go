@@ -114,6 +114,7 @@ func main() {
 	folderHandler := handler.NewFolderHandler(folderService)
 	boardHandler := handler.NewBoardHandler(boardService)
 	itemHandler := handler.NewItemHandler(itemService, analyticsService)
+	webhookHandler := handler.NewWebhookHandler(telegramBot, cfg.Telegram.AppURL, logger)
 
 	// Setup Gin
 	gin.SetMode(cfg.Server.Mode)
@@ -145,6 +146,9 @@ func main() {
 	// API routes
 	api := router.Group("/api")
 	{
+		// Telegram webhook (public - called by Telegram servers)
+		api.POST("/telegram/webhook", webhookHandler.HandleWebhook)
+
 		// Auth routes (public)
 		auth := api.Group("/auth")
 		{

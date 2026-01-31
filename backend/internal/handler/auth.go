@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -32,12 +33,31 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 func (h *AuthHandler) AuthenticateTelegram(c *gin.Context) {
 	var req domain.TelegramAuthRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		slog.Error("[AUTH] Failed to bind JSON request", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
+	// Log initData details (truncated for security)
+	initDataLen := len(req.InitData)
+	initDataPreview := ""
+	if initDataLen > 100 {
+		initDataPreview = req.InitData[:100] + "..."
+	} else {
+		initDataPreview = req.InitData
+	}
+	slog.Info("[AUTH] Received auth request",
+		"initData_length", initDataLen,
+		"initData_preview", initDataPreview,
+	)
+
 	response, err := h.authService.AuthenticateWithTelegram(c.Request.Context(), req.InitData)
 	if err != nil {
+		slog.Error("[AUTH] Authentication failed",
+			"error", err.Error(),
+			"error_type", err,
+			"initData_length", initDataLen,
+		)
 		switch err {
 		case domain.ErrInvalidInitData:
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid telegram init data"})
@@ -48,6 +68,12 @@ func (h *AuthHandler) AuthenticateTelegram(c *gin.Context) {
 		}
 		return
 	}
+
+	slog.Info("[AUTH] Authentication successful",
+		"user_id", response.User.ID,
+		"username", response.User.Username,
+		"token_length", len(response.Token),
+	)
 
 	c.JSON(http.StatusOK, response)
 }

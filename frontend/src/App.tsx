@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { AppShell } from '@/components/layout';
@@ -8,66 +8,95 @@ import { useTelegram } from '@/hooks';
 import { apiClient } from '@/api';
 
 function App() {
-  const { setUser, setTelegramUser, setIsLoading, setError, error, isLoading } = useAppStore();
+  const { setUser, setTelegramUser, setIsLoading, setError, error, isLoading, isAuthenticated } = useAppStore();
   const { isReady, user: telegramUser, initData } = useTelegram();
   const [authAttempted, setAuthAttempted] = useState(false);
+  const [authInProgress, setAuthInProgress] = useState(false);
 
-  useEffect(() => {
-    const authenticate = async () => {
-      if (!isReady || authAttempted) return;
+  const authenticate = useCallback(async () => {
+    // Prevent multiple auth attempts
+    if (authAttempted || authInProgress) return;
 
-      setAuthAttempted(true);
-
-      // Check if we're inside Telegram
-      if (telegramUser && initData) {
-        setTelegramUser(telegramUser);
-
-        try {
-          const authResponse = await apiClient.authenticate(initData);
-          setUser(authResponse.user);
-        } catch (err) {
-          console.error('Authentication failed:', err);
-          setError('Не удалось авторизоваться. Попробуйте перезапустить приложение.');
+    // Wait for Telegram WebApp to be ready
+    if (!isReady) {
+      // Give Telegram WebApp time to initialize (max 3 seconds)
+      const timeout = setTimeout(() => {
+        if (!isReady) {
+          console.error('Telegram WebApp not ready after timeout');
+          setError('Не удалось загрузить Telegram WebApp. Попробуйте перезапустить приложение.');
+          setIsLoading(false);
         }
-        setIsLoading(false);
-      } else {
-        // Not inside Telegram
-        if (import.meta.env.DEV) {
-          // Development mode only - create dev user for local testing
-          console.warn('[DEV MODE] Creating fake user for local development');
-          setUser({
-            id: 123456789,
-            telegram_id: 123456789,
-            username: 'developer',
-            first_name: 'Developer',
-            last_name: 'User',
-            is_premium: false,
-            language_code: 'ru',
+      }, 3000);
+      return () => clearTimeout(timeout);
+    }
+
+    setAuthInProgress(true);
+    setAuthAttempted(true);
+
+    // Check if we're inside Telegram with valid initData
+    if (telegramUser && initData && initData.length > 0) {
+      setTelegramUser(telegramUser);
+
+      try {
+        console.log('[AUTH] Authenticating with Telegram initData...');
+        const authResponse = await apiClient.authenticate(initData);
+        console.log('[AUTH] Authentication successful, user:', authResponse.user.username);
+        setUser(authResponse.user);
+
+        // Verify token was saved
+        if (!apiClient.isAuthenticated()) {
+          throw new Error('Token was not saved after authentication');
+        }
+      } catch (err) {
+        console.error('[AUTH] Authentication failed:', err);
+        setError('Не удалось авторизоваться. Попробуйте перезапустить приложение.');
+      }
+    } else {
+      // Not inside Telegram or no valid initData
+      console.warn('[AUTH] Not in Telegram or no initData', {
+        hasUser: !!telegramUser,
+        initDataLength: initData?.length || 0
+      });
+
+      // STRICT: No DEV mode fallback in production builds
+      // Only allow dev user if explicitly running in development AND local
+      if (import.meta.env.DEV && window.location.hostname === 'localhost') {
+        console.warn('[DEV MODE] Creating fake user for LOCAL development only');
+        setUser({
+          id: 123456789,
+          telegram_id: 123456789,
+          username: 'developer',
+          first_name: 'Developer',
+          last_name: 'User',
+          is_premium: false,
+          language_code: 'ru',
+          notification_enabled: true,
+          reminder_hours: [6, 8, 12],
+          settings: {
             notification_enabled: true,
             reminder_hours: [6, 8, 12],
-            settings: {
-              notification_enabled: true,
-              reminder_hours: [6, 8, 12],
-              language_code: 'ru',
-            },
-            last_active_at: new Date().toISOString(),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
-          setIsLoading(false);
-        } else {
-          // Production - show error, don't allow access outside Telegram
-          setError('Откройте приложение через Telegram');
-          setIsLoading(false);
-        }
+            language_code: 'ru',
+          },
+          last_active_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      } else {
+        // Production or non-localhost - MUST open through Telegram
+        setError('Откройте приложение через Telegram');
       }
-    };
+    }
 
+    setAuthInProgress(false);
+    setIsLoading(false);
+  }, [isReady, telegramUser, initData, authAttempted, authInProgress, setUser, setTelegramUser, setIsLoading, setError]);
+
+  useEffect(() => {
     authenticate();
-  }, [isReady, telegramUser, initData, authAttempted, setUser, setTelegramUser, setIsLoading, setError]);
+  }, [authenticate]);
 
-  // Show error screen if not in Telegram (production only)
-  if (!isLoading && error && !telegramUser) {
+  // Show error screen if authentication failed
+  if (!isLoading && error && !isAuthenticated) {
     return (
       <div className="min-h-screen bg-dark-900 flex items-center justify-center p-6">
         <div className="text-center max-w-sm">
