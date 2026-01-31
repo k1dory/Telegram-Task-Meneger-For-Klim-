@@ -32,7 +32,8 @@ client.interceptors.request.use(
     console.log('[API Client] Request:', config.method?.toUpperCase(), config.url);
     console.log('[API Client] Token check - localStorage:', storedToken ? `${storedToken.substring(0, 20)}...` : 'EMPTY', 'global:', authToken ? 'SET' : 'EMPTY');
     if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
+      // Use set() method for AxiosHeaders compatibility
+      config.headers.set('Authorization', `Bearer ${token}`);
       console.log('[API Client] Added Authorization header with token:', token.substring(0, 20) + '...');
     } else {
       console.warn('[API Client] NO TOKEN AVAILABLE!');
