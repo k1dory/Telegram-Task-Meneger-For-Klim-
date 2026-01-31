@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { AppShell } from '@/components/layout';
@@ -11,21 +11,33 @@ function App() {
   const { setUser, setTelegramUser, setIsLoading, setError, error, isLoading, isAuthenticated } = useAppStore();
   const { isReady, user: telegramUser, initData } = useTelegram();
   const [authAttempted, setAuthAttempted] = useState(false);
-  const [authInProgress, setAuthInProgress] = useState(false);
+  const authInProgressRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  const authenticate = useCallback(async () => {
-    // Prevent multiple auth attempts
-    if (authAttempted || authInProgress) return;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
-    // Wait for Telegram WebApp to be ready
-    if (!isReady) {
-      console.log('[AUTH] Waiting for Telegram WebApp to be ready...');
-      return; // Will be called again when isReady changes
-    }
+  useEffect(() => {
+    const authenticate = async () => {
+      // Prevent multiple auth attempts using ref to avoid race conditions
+      if (authAttempted || authInProgressRef.current) {
+        console.log('[AUTH] Skipping - already attempted or in progress');
+        return;
+      }
 
-    setAuthInProgress(true);
-    setAuthAttempted(true);
-    console.log('[AUTH] Starting authentication, isReady:', isReady);
+      // Wait for Telegram WebApp to be ready
+      if (!isReady) {
+        console.log('[AUTH] Waiting for Telegram WebApp to be ready...');
+        return;
+      }
+
+      authInProgressRef.current = true;
+      setAuthAttempted(true);
+      console.log('[AUTH] Starting authentication, isReady:', isReady);
 
     // Check if we're inside Telegram with valid initData
     if (telegramUser && initData && initData.length > 0) {
@@ -60,7 +72,9 @@ function App() {
         console.log('[AUTH] Authentication complete!');
       } catch (err) {
         console.error('[AUTH] Authentication failed:', err);
-        setError('Не удалось авторизоваться: ' + (err instanceof Error ? err.message : String(err)));
+        if (mountedRef.current) {
+          setError('Не удалось авторизоваться: ' + (err instanceof Error ? err.message : String(err)));
+        }
       }
     } else {
       // Not inside Telegram or no valid initData
@@ -73,38 +87,43 @@ function App() {
       // Only allow dev user if explicitly running in development AND local
       if (import.meta.env.DEV && window.location.hostname === 'localhost') {
         console.warn('[DEV MODE] Creating fake user for LOCAL development only');
-        setUser({
-          id: 123456789,
-          telegram_id: 123456789,
-          username: 'developer',
-          first_name: 'Developer',
-          last_name: 'User',
-          is_premium: false,
-          language_code: 'ru',
-          notification_enabled: true,
-          reminder_hours: [6, 8, 12],
-          settings: {
+        if (mountedRef.current) {
+          setUser({
+            id: 123456789,
+            telegram_id: 123456789,
+            username: 'developer',
+            first_name: 'Developer',
+            last_name: 'User',
+            is_premium: false,
+            language_code: 'ru',
             notification_enabled: true,
             reminder_hours: [6, 8, 12],
-            language_code: 'ru',
-          },
-          last_active_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
+            settings: {
+              notification_enabled: true,
+              reminder_hours: [6, 8, 12],
+              language_code: 'ru',
+            },
+            last_active_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
       } else {
         // Production or non-localhost - MUST open through Telegram
-        setError('Откройте приложение через Telegram');
+        if (mountedRef.current) {
+          setError('Откройте приложение через Telegram');
+        }
       }
     }
 
-    setAuthInProgress(false);
-    setIsLoading(false);
-  }, [isReady, telegramUser, initData, authAttempted, authInProgress, setUser, setTelegramUser, setIsLoading, setError]);
+    authInProgressRef.current = false;
+    if (mountedRef.current) {
+      setIsLoading(false);
+    }
+  };
 
-  useEffect(() => {
-    authenticate();
-  }, [authenticate]);
+  authenticate();
+}, [isReady, telegramUser, initData, authAttempted, setUser, setTelegramUser, setIsLoading, setError]);
 
   // Timeout for Telegram WebApp not loading
   useEffect(() => {

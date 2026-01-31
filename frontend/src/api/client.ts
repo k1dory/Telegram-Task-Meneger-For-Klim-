@@ -170,13 +170,19 @@ export const apiClient = {
 
     console.log('[API] Sending auth request to:', `${BASE_URL}/auth/telegram`);
 
-    const response = await fetch(`${BASE_URL}/auth/telegram`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ init_data: initData }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${BASE_URL}/auth/telegram`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ init_data: initData }),
+      });
+    } catch (fetchError) {
+      console.error('[API] Fetch failed:', fetchError);
+      throw new Error('Network error: ' + (fetchError instanceof Error ? fetchError.message : 'fetch failed'));
+    }
 
     console.log('[API] Response status:', response.status, response.statusText);
 
