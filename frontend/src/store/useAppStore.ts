@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User, UserSettings } from '@/types';
+import apiClient from '@/api/client';
 
 interface TelegramUser {
   id: number;
@@ -118,9 +119,7 @@ export const useAppStore = create<AppState>()(
 
       logout: () => {
         // Clear JWT token from API client
-        import('@/api/client').then(({ default: apiClient }) => {
-          apiClient.logout();
-        });
+        apiClient.logout();
         set({
           user: null,
           telegramUser: null,
