@@ -26,13 +26,14 @@ const client = axios.create({
 // Request interceptor - add token
 client.interceptors.request.use(
   (config) => {
-    // Always get fresh token
-    const token = authToken || localStorage.getItem(TOKEN_KEY) || '';
+    // ALWAYS read from localStorage to avoid any module caching issues
+    const storedToken = localStorage.getItem(TOKEN_KEY);
+    const token = storedToken || authToken || '';
     console.log('[API Client] Request:', config.method?.toUpperCase(), config.url);
-    console.log('[API Client] Token check - global:', authToken ? 'SET' : 'EMPTY', 'localStorage:', localStorage.getItem(TOKEN_KEY) ? 'SET' : 'EMPTY');
+    console.log('[API Client] Token check - localStorage:', storedToken ? `${storedToken.substring(0, 20)}...` : 'EMPTY', 'global:', authToken ? 'SET' : 'EMPTY');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
-      console.log('[API Client] Added Authorization header');
+      console.log('[API Client] Added Authorization header with token:', token.substring(0, 20) + '...');
     } else {
       console.warn('[API Client] NO TOKEN AVAILABLE!');
     }
@@ -69,11 +70,20 @@ export const apiClient = {
       init_data: initData,
     });
 
-    // Save token globally
-    authToken = response.data.token;
-    localStorage.setItem(TOKEN_KEY, authToken);
-    console.log('[API Client] authenticate() SUCCESS - token saved:', authToken ? `${authToken.substring(0, 20)}...` : 'EMPTY');
-    console.log('[API Client] Verify localStorage:', localStorage.getItem(TOKEN_KEY) ? 'STORED' : 'NOT STORED');
+    // Save token globally AND to localStorage
+    const token = response.data.token;
+    console.log('[API Client] Received token from server:', token ? `${token.substring(0, 30)}...` : 'EMPTY');
+
+    authToken = token;
+    localStorage.setItem(TOKEN_KEY, token);
+
+    // Verify immediately
+    const verifyGlobal = authToken;
+    const verifyStorage = localStorage.getItem(TOKEN_KEY);
+    console.log('[API Client] VERIFY after save:');
+    console.log('[API Client]   - Global authToken:', verifyGlobal ? `${verifyGlobal.substring(0, 20)}...` : 'EMPTY');
+    console.log('[API Client]   - localStorage:', verifyStorage ? `${verifyStorage.substring(0, 20)}...` : 'EMPTY');
+    console.log('[API Client]   - Match:', verifyGlobal === verifyStorage);
 
     return response.data;
   },
