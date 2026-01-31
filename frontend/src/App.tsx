@@ -19,19 +19,13 @@ function App() {
 
     // Wait for Telegram WebApp to be ready
     if (!isReady) {
-      // Give Telegram WebApp time to initialize (max 3 seconds)
-      const timeout = setTimeout(() => {
-        if (!isReady) {
-          console.error('Telegram WebApp not ready after timeout');
-          setError('Не удалось загрузить Telegram WebApp. Попробуйте перезапустить приложение.');
-          setIsLoading(false);
-        }
-      }, 3000);
-      return () => clearTimeout(timeout);
+      console.log('[AUTH] Waiting for Telegram WebApp to be ready...');
+      return; // Will be called again when isReady changes
     }
 
     setAuthInProgress(true);
     setAuthAttempted(true);
+    console.log('[AUTH] Starting authentication, isReady:', isReady);
 
     // Check if we're inside Telegram with valid initData
     if (telegramUser && initData && initData.length > 0) {
@@ -94,6 +88,21 @@ function App() {
   useEffect(() => {
     authenticate();
   }, [authenticate]);
+
+  // Timeout for Telegram WebApp not loading
+  useEffect(() => {
+    if (isReady || authAttempted) return;
+
+    const timeout = setTimeout(() => {
+      if (!isReady && !authAttempted) {
+        console.error('[AUTH] Telegram WebApp not ready after timeout');
+        setError('Не удалось загрузить Telegram WebApp. Попробуйте перезапустить приложение.');
+        setIsLoading(false);
+      }
+    }, 5000); // 5 seconds timeout
+
+    return () => clearTimeout(timeout);
+  }, [isReady, authAttempted, setError, setIsLoading]);
 
   // Show error screen if authentication failed
   if (!isLoading && error && !isAuthenticated) {
