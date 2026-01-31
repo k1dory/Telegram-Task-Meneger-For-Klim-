@@ -13,9 +13,25 @@ export function useClickOutside<T extends HTMLElement = HTMLElement>(
 
     const listener = (event: MouseEvent | TouchEvent) => {
       const el = ref.current;
-      if (!el || el.contains(event.target as Node)) {
+      const target = event.target as HTMLElement;
+
+      if (!el || el.contains(target)) {
         return;
       }
+
+      // Ignore clicks on portal elements (dropdowns, calendars, etc.)
+      // They have z-index >= 99999 or data-portal attribute
+      if (target.closest('[data-portal]')) {
+        return;
+      }
+
+      // Check if clicked element or its parent has very high z-index (portaled elements)
+      const clickedEl = target.closest('[style*="z-index: 99999"]') ||
+                        target.closest('[style*="z-index:99999"]');
+      if (clickedEl) {
+        return;
+      }
+
       handler(event);
     };
 
