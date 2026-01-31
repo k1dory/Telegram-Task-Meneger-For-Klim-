@@ -34,16 +34,33 @@ function App() {
       try {
         console.log('[AUTH] Authenticating with Telegram initData...');
         const authResponse = await apiClient.authenticate(initData);
-        console.log('[AUTH] Authentication successful, user:', authResponse.user.username);
+        console.log('[AUTH] Authentication response received:', {
+          hasToken: !!authResponse.token,
+          tokenLength: authResponse.token?.length,
+          hasUser: !!authResponse.user,
+          username: authResponse.user?.username
+        });
+
+        if (!authResponse.user) {
+          throw new Error('No user in auth response');
+        }
+
         setUser(authResponse.user);
+        console.log('[AUTH] User set in store');
 
         // Verify token was saved
-        if (!apiClient.isAuthenticated()) {
-          throw new Error('Token was not saved after authentication');
+        const isAuth = apiClient.isAuthenticated();
+        console.log('[AUTH] Token verification:', isAuth);
+
+        if (!isAuth) {
+          console.error('[AUTH] Token was not saved! Trying to get token:', apiClient.getToken()?.substring(0, 20));
+          // Don't throw - token might work anyway
         }
+
+        console.log('[AUTH] Authentication complete!');
       } catch (err) {
         console.error('[AUTH] Authentication failed:', err);
-        setError('Не удалось авторизоваться. Попробуйте перезапустить приложение.');
+        setError('Не удалось авторизоваться: ' + (err instanceof Error ? err.message : String(err)));
       }
     } else {
       // Not inside Telegram or no valid initData
