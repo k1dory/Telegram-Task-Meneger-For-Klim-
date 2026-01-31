@@ -1,7 +1,9 @@
 import type { User } from '@/types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
-const TOKEN_KEY = 'taskmanager_token';
+
+// Store token in memory (localStorage doesn't work in Telegram WebView on iOS)
+let authToken: string | null = null;
 
 interface AuthResponse {
   token: string;
@@ -10,29 +12,38 @@ interface AuthResponse {
 
 // Get token
 function getToken(): string | null {
-  try {
-    return localStorage.getItem(TOKEN_KEY);
-  } catch {
-    return null;
-  }
+  return authToken;
 }
 
 // Set token
 function setToken(token: string): void {
+  authToken = token;
+  // Also try localStorage as backup
   try {
-    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem('taskmanager_token', token);
   } catch {
-    // localStorage not available
+    // ignore
   }
 }
 
 // Clear token
 function clearToken(): void {
+  authToken = null;
   try {
-    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem('taskmanager_token');
   } catch {
-    // localStorage not available
+    // ignore
   }
+}
+
+// Try to restore token from localStorage on init
+try {
+  const stored = localStorage.getItem('taskmanager_token');
+  if (stored) {
+    authToken = stored;
+  }
+} catch {
+  // ignore
 }
 
 // Make fetch request with auth
@@ -106,7 +117,7 @@ export const apiClient = {
 
     const data: AuthResponse = await response.json();
 
-    // Save token
+    // Save token to memory
     setToken(data.token);
 
     return data;
