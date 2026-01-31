@@ -13,7 +13,7 @@ interface AppShellProps {
 
 const AppShell = ({ children }: AppShellProps) => {
   const location = useLocation();
-  const { isSidebarOpen, setSidebarOpen, theme } = useAppStore();
+  const { isSidebarOpen, setSidebarOpen, theme, isLoading, isAuthenticated } = useAppStore();
 
   // Close sidebar on route change on mobile
   useEffect(() => {
@@ -54,6 +54,18 @@ const AppShell = ({ children }: AppShellProps) => {
   }, [theme]);
 
   const hideBottomNav = location.pathname.includes('/task/') || location.pathname.includes('/note/');
+
+  // Show loading screen while authenticating
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-dark-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-dark-400">Загрузка...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-dark-900 text-dark-50 relative overflow-hidden">

@@ -76,9 +76,9 @@ class ApiClient {
       (response: AxiosResponse) => response,
       async (error: AxiosError) => {
         if (error.response?.status === 401) {
-          // Token expired or invalid - clear and trigger re-auth
-          this.logout();
-          console.error('Unauthorized - please re-authenticate');
+          // Don't auto-logout - let the app handle re-authentication
+          // This prevents race conditions where parallel requests clear the token
+          console.warn('Unauthorized request - token may be expired');
         }
 
         if (error.response?.status === 429) {
