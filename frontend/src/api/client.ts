@@ -168,6 +168,8 @@ export const apiClient = {
       throw new Error('No initData provided for authentication');
     }
 
+    console.log('[API] Sending auth request to:', `${BASE_URL}/auth/telegram`);
+
     const response = await fetch(`${BASE_URL}/auth/telegram`, {
       method: 'POST',
       headers: {
@@ -175,6 +177,8 @@ export const apiClient = {
       },
       body: JSON.stringify({ init_data: initData }),
     });
+
+    console.log('[API] Response status:', response.status, response.statusText);
 
     if (!response.ok) {
       let errorMessage = 'Authentication failed';
@@ -188,7 +192,19 @@ export const apiClient = {
       throw new Error(errorMessage);
     }
 
-    const data: AuthResponse = await response.json();
+    const responseText = await response.text();
+    console.log('[API] Response text length:', responseText.length);
+    console.log('[API] Response text preview:', responseText.substring(0, 200));
+
+    let data: AuthResponse;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error('[API] Failed to parse response JSON:', e);
+      throw new Error('Invalid server response');
+    }
+
+    console.log('[API] Parsed response:', { hasToken: !!data.token, hasUser: !!data.user });
 
     if (!data.token) {
       console.error('[API] Server returned no token!');
