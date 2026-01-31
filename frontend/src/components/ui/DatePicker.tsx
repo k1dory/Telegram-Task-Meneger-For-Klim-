@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   format,
@@ -15,7 +16,6 @@ import {
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { cn } from '@/utils';
-import { useClickOutside } from '@/hooks';
 
 interface DatePickerProps {
   label?: string;
@@ -42,7 +42,9 @@ const DatePicker = ({
 }: DatePickerProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(value || new Date());
-  const containerRef = useClickOutside<HTMLDivElement>(() => setIsOpen(false), isOpen);
+  const [calendarStyle, setCalendarStyle] = useState<React.CSSProperties>({});
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -65,13 +67,172 @@ const DatePicker = ({
     }
   };
 
+  // Calculate calendar position
+  const updateCalendarPosition = useCallback(() => {
+    if (!buttonRef.current) return;
+
+    const rect = buttonRef.current.getBoundingClientRect();
+    const calendarHeight = 380; // Approximate calendar height
+    const calendarWidth = Math.max(rect.width, 300); // Min width 300px
+    const spaceBelow = window.innerHeight - rect.bottom - 8;
+    const spaceAbove = rect.top - 8;
+    const openUpward = spaceBelow < calendarHeight && spaceAbove > calendarHeight;
+
+    // Center horizontally if wider than button
+    let left = rect.left;
+    if (calendarWidth > rect.width) {
+      left = rect.left - (calendarWidth - rect.width) / 2;
+    }
+    // Keep within viewport
+    left = Math.max(8, Math.min(left, window.innerWidth - calendarWidth - 8));
+
+    setCalendarStyle({
+      position: 'fixed',
+      left,
+      width: calendarWidth,
+      top: openUpward ? rect.top - calendarHeight - 8 : rect.bottom + 8,
+      zIndex: 9999,
+    });
+  }, []);
+
+  // Update position when open
+  useEffect(() => {
+    if (isOpen) {
+      updateCalendarPosition();
+      window.addEventListener('scroll', updateCalendarPosition, true);
+      window.addEventListener('resize', updateCalendarPosition);
+      return () => {
+        window.removeEventListener('scroll', updateCalendarPosition, true);
+        window.removeEventListener('resize', updateCalendarPosition);
+      };
+    }
+  }, [isOpen, updateCalendarPosition]);
+
+  // Close on click outside
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target as Node) &&
+        calendarRef.current &&
+        !calendarRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const calendar = (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          ref={calendarRef}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.15 }}
+          style={calendarStyle}
+          className={cn(
+            'bg-dark-800 border border-dark-700 rounded-xl',
+            'shadow-2xl shadow-black/40 p-4'
+          )}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <button
+              type="button"
+              onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+              className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
+            >
+              <svg className="w-5 h-5 text-dark-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <span className="text-dark-50 font-medium">
+              {format(currentMonth, 'LLLL yyyy', { locale: ru })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+              className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
+            >
+              <svg className="w-5 h-5 text-dark-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Week days */}
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {weekDays.map((day) => (
+              <div
+                key={day}
+                className="text-center text-xs font-medium text-dark-400 py-2"
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* Days */}
+          <div className="grid grid-cols-7 gap-1">
+            {days.map((day) => {
+              const isSelected = value && isSameDay(day, value);
+              const isCurrentMonth = isSameMonth(day, currentMonth);
+              const isDisabledDate = isDateDisabled(day);
+              const isDayToday = isToday(day);
+
+              return (
+                <button
+                  key={day.toISOString()}
+                  type="button"
+                  onClick={() => handleSelect(day)}
+                  disabled={isDisabledDate}
+                  className={cn(
+                    'p-2 text-sm rounded-lg transition-colors',
+                    !isCurrentMonth && 'text-dark-600',
+                    isCurrentMonth && !isSelected && 'text-dark-200 hover:bg-dark-700',
+                    isSelected && 'bg-primary-500 text-white',
+                    isDayToday && !isSelected && 'ring-1 ring-primary-500',
+                    isDisabledDate && 'opacity-30 cursor-not-allowed'
+                  )}
+                >
+                  {format(day, 'd')}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Today button */}
+          <button
+            type="button"
+            onClick={() => {
+              setCurrentMonth(new Date());
+              onChange(new Date());
+              setIsOpen(false);
+            }}
+            className="w-full mt-3 py-2 text-sm text-primary-400 hover:bg-dark-700 rounded-lg transition-colors"
+          >
+            Сегодня
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
   return (
     <div className="flex flex-col gap-1.5 w-full">
       {label && (
         <label className="text-sm font-medium text-dark-200">{label}</label>
       )}
-      <div ref={containerRef} className="relative">
+      <div className="relative">
         <button
+          ref={buttonRef}
           type="button"
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
@@ -110,100 +271,8 @@ const DatePicker = ({
           </div>
         </button>
 
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.15 }}
-              className={cn(
-                'absolute z-[200] w-full mt-2',
-                'bg-dark-800 border border-dark-700 rounded-xl',
-                'shadow-xl shadow-black/20 p-4'
-              )}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between mb-4">
-                <button
-                  type="button"
-                  onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-                  className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
-                >
-                  <svg className="w-5 h-5 text-dark-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                <span className="text-dark-50 font-medium">
-                  {format(currentMonth, 'LLLL yyyy', { locale: ru })}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-                  className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
-                >
-                  <svg className="w-5 h-5 text-dark-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Week days */}
-              <div className="grid grid-cols-7 gap-1 mb-2">
-                {weekDays.map((day) => (
-                  <div
-                    key={day}
-                    className="text-center text-xs font-medium text-dark-400 py-2"
-                  >
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              {/* Days */}
-              <div className="grid grid-cols-7 gap-1">
-                {days.map((day) => {
-                  const isSelected = value && isSameDay(day, value);
-                  const isCurrentMonth = isSameMonth(day, currentMonth);
-                  const isDisabled = isDateDisabled(day);
-                  const isDayToday = isToday(day);
-
-                  return (
-                    <button
-                      key={day.toISOString()}
-                      type="button"
-                      onClick={() => handleSelect(day)}
-                      disabled={isDisabled}
-                      className={cn(
-                        'p-2 text-sm rounded-lg transition-colors',
-                        !isCurrentMonth && 'text-dark-600',
-                        isCurrentMonth && !isSelected && 'text-dark-200 hover:bg-dark-700',
-                        isSelected && 'bg-primary-500 text-white',
-                        isDayToday && !isSelected && 'ring-1 ring-primary-500',
-                        isDisabled && 'opacity-30 cursor-not-allowed'
-                      )}
-                    >
-                      {format(day, 'd')}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Today button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setCurrentMonth(new Date());
-                  onChange(new Date());
-                  setIsOpen(false);
-                }}
-                className="w-full mt-3 py-2 text-sm text-primary-400 hover:bg-dark-700 rounded-lg transition-colors"
-              >
-                Сегодня
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Render calendar in portal */}
+        {createPortal(calendar, document.body)}
       </div>
       {error && <p className="text-sm text-red-400">{error}</p>}
     </div>

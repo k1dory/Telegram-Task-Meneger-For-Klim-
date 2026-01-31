@@ -36,8 +36,10 @@ const Modal = ({
   useEffect(() => {
     if (!isOpen) return;
 
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+
     const updateViewportHeight = () => {
-      // Use visualViewport API if available (better for mobile keyboards)
       if (window.visualViewport) {
         setViewportHeight(`${window.visualViewport.height}px`);
       } else {
@@ -47,7 +49,6 @@ const Modal = ({
 
     updateViewportHeight();
 
-    // Listen to viewport changes (keyboard open/close)
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', updateViewportHeight);
       window.visualViewport.addEventListener('scroll', updateViewportHeight);
@@ -55,6 +56,7 @@ const Modal = ({
     window.addEventListener('resize', updateViewportHeight);
 
     return () => {
+      document.body.style.overflow = '';
       if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', updateViewportHeight);
         window.visualViewport.removeEventListener('scroll', updateViewportHeight);
@@ -80,12 +82,12 @@ const Modal = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm"
           />
 
           {/* Modal Container */}
           <div
-            className="fixed inset-x-0 top-0 z-50 flex items-end sm:items-center justify-center p-4 overflow-y-auto"
+            className="fixed inset-x-0 top-0 z-[100] flex items-end sm:items-center justify-center p-4"
             style={{ height: viewportHeight }}
           >
             <motion.div
@@ -96,14 +98,14 @@ const Modal = ({
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               className={cn(
                 'w-full bg-dark-800 rounded-t-3xl sm:rounded-2xl shadow-2xl',
-                'border border-dark-700 overflow-visible flex flex-col',
-                'max-h-[90%]',
+                'border border-dark-700 flex flex-col',
+                'max-h-[85vh] sm:max-h-[90vh]',
                 sizes[size]
               )}
             >
               {/* Header */}
               {(title || showCloseButton) && (
-                <div className="flex items-center justify-between px-6 py-4 border-b border-dark-700">
+                <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-dark-700">
                   <div>
                     {title && (
                       <h2 className="text-lg font-semibold text-dark-50">{title}</h2>
@@ -135,8 +137,10 @@ const Modal = ({
                 </div>
               )}
 
-              {/* Content */}
-              <div className="px-6 py-4 flex-1 overflow-y-auto min-h-0">{children}</div>
+              {/* Content - scrollable */}
+              <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4 min-h-0">
+                {children}
+              </div>
 
               {/* Footer */}
               {footer && (
