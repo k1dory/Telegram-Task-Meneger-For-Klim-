@@ -112,7 +112,7 @@ const Select = ({
               exit={{ opacity: 0, y: openUpward ? 10 : -10 }}
               transition={{ duration: 0.15 }}
               className={cn(
-                'absolute z-[100] w-full min-w-[160px]',
+                'absolute z-[200] w-full min-w-[160px]',
                 openUpward ? 'bottom-full mb-2' : 'top-full mt-2',
                 'bg-dark-800 border border-dark-700/60 rounded-xl',
                 'shadow-2xl shadow-black/40 overflow-hidden'

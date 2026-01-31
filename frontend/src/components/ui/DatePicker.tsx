@@ -118,7 +118,7 @@ const DatePicker = ({
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.15 }}
               className={cn(
-                'absolute z-50 w-full mt-2',
+                'absolute z-[200] w-full mt-2',
                 'bg-dark-800 border border-dark-700 rounded-xl',
                 'shadow-xl shadow-black/20 p-4'
               )}

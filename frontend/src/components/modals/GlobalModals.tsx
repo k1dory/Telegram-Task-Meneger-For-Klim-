@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore, useTasksStore, useNotesStore, useCalendarStore, useHabitsStore, useFoldersStore } from '@/store';
 import { boardsApi } from '@/api';
-import { Modal, Button, Input, Select } from '@/components/ui';
+import { Modal, Button, Input, Select, DatePicker } from '@/components/ui';
 import type { Item, ItemPriority, Board, BoardType } from '@/types';
 import { boardTypeLabels } from '@/utils';
 
@@ -40,7 +40,7 @@ const TaskFormModal = () => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [priority, setPriority] = useState<ItemPriority>('medium');
-  const [dueDate, setDueDate] = useState('');
+  const [dueDate, setDueDate] = useState<Date | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -48,12 +48,14 @@ const TaskFormModal = () => {
       setTitle(task.title);
       setContent(task.content || '');
       setPriority(task.metadata?.priority || 'medium');
-      setDueDate(toHtmlDate(task.due_date));
+      // Parse date string to Date object
+      const dateStr = toHtmlDate(task.due_date);
+      setDueDate(dateStr ? new Date(dateStr + 'T12:00:00') : null);
     } else {
       setTitle('');
       setContent('');
       setPriority('medium');
-      setDueDate('');
+      setDueDate(null);
     }
   }, [isEdit, task, isOpen]);
 
@@ -61,12 +63,15 @@ const TaskFormModal = () => {
     if (!title.trim()) return;
     setIsSubmitting(true);
 
+    // Convert Date to YYYY-MM-DD string for backend
+    const dueDateStr = dueDate ? dueDate.toISOString().split('T')[0] : '';
+
     try {
       if (isEdit && task) {
         await updateTask(task.id, {
           title,
           content,
-          due_date: toBackendDate(dueDate) || undefined,
+          due_date: toBackendDate(dueDateStr) || undefined,
           metadata: { ...task.metadata, priority },
         });
       } else {
@@ -77,7 +82,7 @@ const TaskFormModal = () => {
             title,
             content,
             status: status as 'pending' | 'in_progress' | 'completed',
-            due_date: toBackendDate(dueDate) || undefined,
+            due_date: toBackendDate(dueDateStr) || undefined,
             metadata: { priority },
           });
         }
@@ -127,11 +132,11 @@ const TaskFormModal = () => {
             { value: 'urgent', label: 'Срочный' },
           ]}
         />
-        <Input
+        <DatePicker
           label="Срок выполнения"
-          type="date"
           value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
+          onChange={setDueDate}
+          placeholder="Выберите дату"
         />
       </div>
     </Modal>
@@ -372,8 +377,8 @@ const EventFormModal = () => {
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
   const [allDay, setAllDay] = useState(false);
   const [color, setColor] = useState('#6366f1');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -386,16 +391,18 @@ const EventFormModal = () => {
       setContent(event.content || '');
       const start = event.metadata?.start_date || event.due_date;
       const end = event.metadata?.end_date;
-      setStartDate(toHtmlDate(start));
-      setEndDate(toHtmlDate(end));
+      const startStr = toHtmlDate(start);
+      const endStr = toHtmlDate(end);
+      setStartDate(startStr ? new Date(startStr + 'T12:00:00') : null);
+      setEndDate(endStr ? new Date(endStr + 'T12:00:00') : null);
       setAllDay(event.metadata?.all_day || false);
       setColor(event.metadata?.color || '#6366f1');
     } else {
       const initialDate = (data as { startDate?: Date })?.startDate;
       setTitle('');
       setContent('');
-      setStartDate(initialDate ? initialDate.toISOString().split('T')[0] : '');
-      setEndDate('');
+      setStartDate(initialDate || null);
+      setEndDate(null);
       setAllDay(false);
       setColor('#6366f1');
     }
@@ -405,7 +412,10 @@ const EventFormModal = () => {
     if (!title.trim() || !startDate) return;
     setIsSubmitting(true);
 
-    const backendStartDate = toBackendDate(startDate);
+    // Convert Date objects to YYYY-MM-DD strings
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate ? endDate.toISOString().split('T')[0] : startDateStr;
+    const backendStartDate = toBackendDate(startDateStr);
 
     try {
       if (isEdit && event) {
@@ -415,8 +425,8 @@ const EventFormModal = () => {
           due_date: backendStartDate,
           metadata: {
             ...event.metadata,
-            start_date: startDate,
-            end_date: endDate || startDate,
+            start_date: startDateStr,
+            end_date: endDateStr,
             all_day: allDay,
             color,
           },
@@ -429,8 +439,8 @@ const EventFormModal = () => {
             content,
             due_date: backendStartDate,
             metadata: {
-              start_date: startDate,
-              end_date: endDate || startDate,
+              start_date: startDateStr,
+              end_date: endDateStr,
               all_day: allDay,
               color,
             },
@@ -472,17 +482,18 @@ const EventFormModal = () => {
           placeholder="Описание (необязательно)"
         />
         <div className="grid grid-cols-2 gap-4">
-          <Input
+          <DatePicker
             label="Начало"
-            type="date"
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            onChange={setStartDate}
+            placeholder="Выберите дату"
           />
-          <Input
+          <DatePicker
             label="Окончание"
-            type="date"
             value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            onChange={setEndDate}
+            placeholder="Выберите дату"
+            minDate={startDate || undefined}
           />
         </div>
         <label className="flex items-center gap-2 cursor-pointer">

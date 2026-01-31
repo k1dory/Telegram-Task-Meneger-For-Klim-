@@ -85,7 +85,7 @@ const Modal = ({
 
           {/* Modal Container */}
           <div
-            className="fixed inset-x-0 top-0 z-50 flex items-end sm:items-center justify-center p-4 overflow-hidden"
+            className="fixed inset-x-0 top-0 z-50 flex items-end sm:items-center justify-center p-4 overflow-y-auto"
             style={{ height: viewportHeight }}
           >
             <motion.div
