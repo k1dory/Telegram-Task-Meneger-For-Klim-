@@ -35,6 +35,15 @@ func NewMiddleware(authService *service.AuthService, logger *slog.Logger) *Middl
 func (m *Middleware) AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader(AuthorizationHeader)
+
+		// Debug logging
+		m.logger.Info("auth check",
+			"path", c.Request.URL.Path,
+			"method", c.Request.Method,
+			"has_auth_header", authHeader != "",
+			"auth_header_len", len(authHeader),
+		)
+
 		if authHeader == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "authorization header required",
