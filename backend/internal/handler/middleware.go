@@ -36,12 +36,19 @@ func (m *Middleware) AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader(AuthorizationHeader)
 
-		// Debug logging
+		// Debug logging - log ALL headers
+		allHeaders := make(map[string]string)
+		for key, values := range c.Request.Header {
+			if len(values) > 0 {
+				allHeaders[key] = values[0]
+			}
+		}
 		m.logger.Info("auth check",
 			"path", c.Request.URL.Path,
 			"method", c.Request.Method,
 			"has_auth_header", authHeader != "",
 			"auth_header_len", len(authHeader),
+			"all_headers", allHeaders,
 		)
 
 		if authHeader == "" {
