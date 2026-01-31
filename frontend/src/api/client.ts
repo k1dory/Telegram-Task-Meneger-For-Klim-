@@ -18,12 +18,21 @@ const axiosInstance = axios.create({
   },
 });
 
-// Request interceptor - adds token from localStorage to EVERY request
+// Initialize token from localStorage on module load
+const storedToken = localStorage.getItem(TOKEN_KEY);
+if (storedToken) {
+  axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+}
+
+// Request interceptor - adds token from localStorage to EVERY request (backup)
 axiosInstance.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Double-check: if no auth header, try localStorage
+    if (!config.headers.Authorization) {
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },
@@ -50,8 +59,13 @@ export const apiClient = {
         init_data: initData,
       });
 
+      const token = response.data.token;
+
       // Save token to localStorage
-      localStorage.setItem(TOKEN_KEY, response.data.token);
+      localStorage.setItem(TOKEN_KEY, token);
+
+      // ALSO set directly on axios instance defaults
+      axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
       return response.data;
     } catch (error) {
