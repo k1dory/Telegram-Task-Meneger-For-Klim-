@@ -12,6 +12,8 @@ interface AuthResponse {
 // Store token globally, not in class instance
 let authToken: string = localStorage.getItem(TOKEN_KEY) || '';
 
+console.log('[API Client] Initial token from localStorage:', authToken ? `${authToken.substring(0, 20)}...` : 'EMPTY');
+
 // Create axios instance
 const client = axios.create({
   baseURL: BASE_URL,
@@ -26,8 +28,13 @@ client.interceptors.request.use(
   (config) => {
     // Always get fresh token
     const token = authToken || localStorage.getItem(TOKEN_KEY) || '';
+    console.log('[API Client] Request:', config.method?.toUpperCase(), config.url);
+    console.log('[API Client] Token check - global:', authToken ? 'SET' : 'EMPTY', 'localStorage:', localStorage.getItem(TOKEN_KEY) ? 'SET' : 'EMPTY');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
+      console.log('[API Client] Added Authorization header');
+    } else {
+      console.warn('[API Client] NO TOKEN AVAILABLE!');
     }
     return config;
   },
@@ -57,6 +64,7 @@ client.interceptors.response.use(
 // API functions
 export const apiClient = {
   async authenticate(initData: string): Promise<AuthResponse> {
+    console.log('[API Client] authenticate() called');
     const response = await client.post<AuthResponse>('/auth/telegram', {
       init_data: initData,
     });
@@ -64,6 +72,8 @@ export const apiClient = {
     // Save token globally
     authToken = response.data.token;
     localStorage.setItem(TOKEN_KEY, authToken);
+    console.log('[API Client] authenticate() SUCCESS - token saved:', authToken ? `${authToken.substring(0, 20)}...` : 'EMPTY');
+    console.log('[API Client] Verify localStorage:', localStorage.getItem(TOKEN_KEY) ? 'STORED' : 'NOT STORED');
 
     return response.data;
   },
